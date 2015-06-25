@@ -7,7 +7,7 @@ CFLAGS += -D_XOPEN_SOURCE=700 -pthread
 
 targets = slowtty
 
-slowtty_objs = slowtty.o
+slowtty_objs = slowtty.o delay.o
 
 objs = $(foreach i, $(targets), $($(i)_objs))
 
@@ -20,3 +20,5 @@ install: $(targets)
 
 slowtty: $(slowtty_objs)
 	$(CC) $(CFLAGS) $(LDFLAGS) -o $@ $($@_objs) $($@_libs)
+
+$(slowtty_objs): delay.h

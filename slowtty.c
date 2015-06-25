@@ -29,7 +29,10 @@ int ptym, ptys;
 #define D(x) __FILE__":%d: %s: " x, __LINE__, __func__
 #define ERRNO ": %s (errno=%d)"
 #define EPMTS strerror(errno), errno
-#define ERR(x, args...) do { fprintf(stderr, D("ERROR: " x ), args); exit(EXIT_FAILURE); } while (0)
+#define ERR(x, args...) do { \
+        fprintf(stderr, D("ERROR: " x ), args); \
+        exit(EXIT_FAILURE); \
+    } while (0)
 
 #if DEBUG
 #define LOG(x, args...) do { fprintf(stderr, D("INFO: " x), args); } while (0)
@@ -37,7 +40,6 @@ int ptym, ptys;
 #define LOG(x, args...)
 #endif
 
-int delay = 20000;
 struct termios saved_tty;
 
 struct pthread_info {
@@ -48,7 +50,7 @@ struct pthread_info {
     char           *name;
     unsigned char   buffer[BUFSIZ];
     size_t          buffsz;
-};
+}; /* struct pthread_info */
 
 struct pthread_info *init_pthread_info(
         int                     from_fd,
@@ -61,28 +63,36 @@ struct pthread_info *init_pthread_info(
     pi->name        = name;
     pi->buffsz      = 0;
     return pi;
-}
+} /* init_pthread_info */
 
 void *pthread_body_writer(void *_pi)
 {
     struct pthread_info *pi = _pi;
-    int n;
+    int flags;
+    struct termios t;
 
-    LOG("pthread %d: from_fd=%d, to_fd=%d, name=%s\r\n",
-            pi->id, pi->from_fd, pi->to_fd, pi->name);
 
-    while ((n = read(pi->from_fd, pi->buffer + pi->buffsz, sizeof pi->buffer - pi->buffsz)) > 0) {
-        int i;
-        pi->buffsz += n;
-        for (i = 0; i < pi->buffsz; i++) {
-            if (write(pi->to_fd, pi->buffer + i, 1) < 0)
-                ERR("write" ERRNO, EPMTS);
-            usleep(delay);
+    LOG("pthread %d: from_fd=%d, to_fd=%d, name=%s, flags=%#08x\r\n",
+            pi->id, pi->from_fd, pi->to_fd, pi->name, flags);
+
+    for (;;) {
+        int n;
+
+        tcgetattr(pi->from_fd, &t);
+        n = delay(&t);
+        if (n) {
+            n = read(pi->from_fd, pi->buffer, n);
+            if (n <= 0) {
+                LOG("read" ERRNO "\r\n", EPMTS);
+                break;
+            } /* if */
+            n = write(pi->to_fd, pi->buffer, n);
+            if (n < 0) {
+                LOG("write" ERRNO "\r\n", EPMTS);
+                break;
+            } /* if */
         } /* if */
-        pi->buffsz = 0;
     } /* while */
-
-    if (n < 0) LOG("read" ERRNO "\r\n", EPMTS);
 
     return NULL;
 } /* pthread_body_writer */
@@ -92,17 +102,20 @@ void *pthread_body_reader(void *_pi)
     struct pthread_info *pi = _pi;
     ssize_t n;
     int res;
-    struct winsize ws;
+    struct winsize ws, ws_old;
 
     LOG("pthread %d: from_fd=%d, to_fd=%d, name=%s\r\n",
             pi->id, pi->from_fd, pi->to_fd, pi->name);
 
+    tcsetattr(pi->to_fd, TCSAFLUSH, &saved_tty);
+
     pthread_setcanceltype(PTHREAD_CANCEL_ASYNCHRONOUS, NULL);
     pthread_setcancelstate(PTHREAD_CANCEL_ENABLE, NULL);
 
-    while ((n = read(pi->from_fd, pi->buffer, sizeof pi->buffer)) > 0) {
+    while ((n = read(pi->from_fd,
+                     pi->buffer,
+                     sizeof pi->buffer)) > 0)
         write(pi->to_fd, pi->buffer, n);
-    } /* while */
 
     if (n < 0) LOG("read" ERRNO "\r\n", EPMTS);
 
@@ -124,9 +137,8 @@ int main(int argc, char **argv)
     int shelpid;
     int opt, res;
 
-    while ((opt = getopt(argc, argv, "t:")) != EOF) {
+    while ((opt = getopt(argc, argv, "")) != EOF) {
         switch (opt) {
-        case 't': delay = atoi(optarg); break;
         } /* switch */
     } /* while */
 
