@@ -107,10 +107,10 @@ void *pthread_body_reader(void *_pi)
     LOG("pthread %d: from_fd=%d, to_fd=%d, name=%s\r\n",
             pi->id, pi->from_fd, pi->to_fd, pi->name);
 
-    tcsetattr(pi->to_fd, TCSAFLUSH, &saved_tty);
-
     pthread_setcanceltype(PTHREAD_CANCEL_ASYNCHRONOUS, NULL);
     pthread_setcancelstate(PTHREAD_CANCEL_ENABLE, NULL);
+
+    tcsetattr(pi->to_fd, TCSAFLUSH, &saved_tty);
 
     while ((n = read(pi->from_fd,
                      pi->buffer,
@@ -122,14 +122,13 @@ void *pthread_body_reader(void *_pi)
     return NULL;
 } /* pthread_body_reader */
 
-int pass_winsz(int src_fd, int dst_fd)
+void pass_winsz(int sig)
 {
     struct winsize ws;
 
-    if (ioctl(src_fd, TIOCGWINSZ, &ws) < 0) return -1;
-    if (ioctl(dst_fd, TIOCSWINSZ, &ws) < 0) return -1;
-
-    return 0;
+    (ioctl(0, TIOCGWINSZ, &ws) >= 0) &&
+        (ioctl(1, TIOCGWINSZ, &ws) >= 0) &&
+        (ioctl(ptym, TIOCSWINSZ, &ws));
 } /* pass_winsz */
 
 int main(int argc, char **argv)
@@ -187,9 +186,7 @@ int main(int argc, char **argv)
                     ERR("tcsetattr(1, ...): ERROR" ERRNO "\r\n", EPMTS);
             } /* if */
 
-            if (pass_winsz(0, ptys) < 0) {
-                pass_winsz(1, ptys);
-            } /* if */
+            pass_winsz(0);
 
             /* redirect */
             close(0); close(1); close(2);
@@ -218,7 +215,15 @@ int main(int argc, char **argv)
     default: { /* parent process */
             struct pthread_info p_in, p_out;
             int res, exit_code = 0;
+            struct sigaction sa;
 
+            memset(&sa, 0, sizeof sa);
+            sa.sa_handler = pass_winsz;
+
+            /* install signal handler */
+            sigaction(SIGWINCH, &sa, NULL);
+
+            /* create the subthreads to process info */
             res = pthread_create(
                     &p_in.id,
                     NULL,
@@ -241,16 +246,20 @@ int main(int argc, char **argv)
             if (res < 0) ERR("pthread_create" ERRNO "\r\n", EPMTS);
             LOG("pthread_create: id=%d\r\n", p_out.id);
 
+            /* wait for subprocess to terminate */
             res = wait(&exit_code);
             LOG("wait(&exit_code == %d) => %d\r\n", exit_code, res);
 
+            /* join writing thread */
             if (res = pthread_join(p_out.id, NULL) < 0)
                 ERR("pthread_join" ERRNO "\r\n", EPMTS);
             LOG("pthread_join(%d, NULL) => %d\r\n", p_out.id, res);
 
+            /* cancel reading thread */
             res = pthread_cancel(p_in.id);
             LOG("pthread_cancel(%d) => %d\r\n", p_in.id, res);
 
+            /* join it */
             res = pthread_join(p_in.id, NULL);
             LOG("pthread_join(%d, NULL) => %d\r\n", p_in.id, res);
 
@@ -266,6 +275,7 @@ int main(int argc, char **argv)
                     ERR("tcsetattr(1, ...): ERROR" ERRNO "\r\n", EPMTS);
             } /* if */
 
+            /* exit with the subprocess exit code */
             exit(WEXITSTATUS(exit_code));
         } /* case */
     } /* switch */
