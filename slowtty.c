@@ -126,6 +126,10 @@ void pass_winsz(int sig)
 {
     struct winsize ws;
 
+    /* ioctl doesn't interact with any other part of
+     * the system, so we do both ioctl(2) calls
+     * asynchronously. */
+
     (ioctl(0, TIOCGWINSZ, &ws) >= 0) &&
         (ioctl(1, TIOCGWINSZ, &ws) >= 0) &&
         (ioctl(ptym, TIOCSWINSZ, &ws));
