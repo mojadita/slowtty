@@ -9,7 +9,7 @@ bindir= $(prefix)/bin
 INSTALL=install
 RM = rm -f
 
-CFLAGS	+= -D_BSD_SOURCE=700 -pthread
+CFLAGS	+= -pthread
 DMOD	= -m 0755
 XMOD	= -m 0755
 FMOD	= -m 0644

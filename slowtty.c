@@ -8,7 +8,6 @@
 #include <errno.h>
 #include <fcntl.h>
 #include <getopt.h>
-#include <libutil.h>
 #include <pthread.h>
 #include <pwd.h>
 #include <signal.h>
@@ -20,6 +19,14 @@
 #include <sys/wait.h>
 #include <termios.h>
 #include <unistd.h>
+
+#if HAS_PTY_H
+#include <pty.h>
+#endif
+
+#if HAS_LIBUTIL_H
+#include <libutil.h>
+#endif
 
 #include "slowtty.h"
 #include "delay.h"
