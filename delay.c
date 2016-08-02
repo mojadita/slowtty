@@ -10,28 +10,34 @@
 #include <stdio.h>
 #include <stdlib.h>
 #include <string.h>
+#include <unistd.h>
 #include <termios.h>
 #include <unistd.h>
 
+#include "slowtty.h"
 #include "delay.h"
 
 #ifndef MIN_DELAY  /* so we can change the value on the command line */
 #define MIN_DELAY   25000
 #endif
 
-#ifndef DEBUG
-#define DEBUG 0
+#ifndef NDEBUG
+#define NDEBUG 0
 #endif
 
-#if DEBUG
-#  define D(X) "%s:%d: %s: " X, __FILE__, __LINE__, __func__
-#  define DEB(X, args...) do { fprintf(stderr, D(X), args); } while(0)
+#define D(X) "%s:%d: %s: " X, __FILE__, __LINE__, __func__
+
+#if NDEBUG
+#  define DEB(X, args...) do { \
+		if (flags & FLAG_VERBOSE) { \
+			fprintf(stderr, D(X), args); \
+		} \
+	} while(0)
 #else
-#  define D(X) X
 #  define DEB(X, args...)
 #endif /* DEBUG */
 
-/* Get the integer number of bauds per second from the c_lflag field
+/* Get the integer number of bits per second from the c_lflag field
  * @param t struct termios pointer where to get the output baudrate.
  * @return the baudrate as an integer. */
 static unsigned long getthebr(struct termios *t)
