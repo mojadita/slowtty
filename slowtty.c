@@ -131,7 +131,9 @@ void *pthread_body_reader(void *_pi)
     while ((n = read(pi->from_fd,
                      pi->buffer,
                      sizeof pi->buffer)) > 0)
+    {
         write(pi->to_fd, pi->buffer, n);
+    }
 
     if (n < 0) LOG("read" ERRNO "\r\n", EPMTS);
 
