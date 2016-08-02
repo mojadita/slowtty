@@ -1,7 +1,11 @@
-/* slowtty.c -- program to slow down the output of characters to be able to follow
- * output as if a slow terminal were attached to the computer.
+/* slowtty.c -- program to slow down the output of characters to be able
+ * to follow output as if a slow terminal were attached to the computer.
  * Author: Luis Colorado <luiscoloradourcola@gmail.com>
- * Copyright: (C) 2015 LUIS COLORADO.  This is open source copyrighted software.
+ * Copyright: (C) 2015 LUIS COLORADO.
+ * This is open source copyrighted software.  You can redistribute it in
+ * source or binary form under the Berkeley Software Distribution license.
+ * The author does not assume any liability or responsibility from the use
+ * or misuse of this software.
  */
 
 #include <assert.h>
@@ -95,8 +99,8 @@ void *pthread_body_writer(void *_pi)
     struct termios t;
 
 
-    LOG("id=%p, from_fd=%d, to_fd=%d, name=%s, flags=%#08x\r\n",
-            pi->id, pi->from_fd, pi->to_fd, pi->name, flags);
+    LOG("from_fd=%d, to_fd=%d, name=%s, flags=%#08x\r\n",
+            pi->from_fd, pi->to_fd, pi->name, flags);
 
     for (;;) {
         int n;
@@ -127,8 +131,9 @@ void *pthread_body_reader(void *_pi)
     int res;
     struct winsize ws, ws_old;
 
-    LOG("id=%p, from_fd=%d, to_fd=%d, name=%s\r\n",
-            pi->id, pi->from_fd, pi->to_fd, pi->name);
+    LOG("from_fd=%d, to_fd=%d, name=%s, flags=%#08x\r\n",
+            pi->from_fd, pi->to_fd, pi->name, flags);
+
 
     pthread_setcanceltype(PTHREAD_CANCEL_ASYNCHRONOUS, NULL);
     pthread_setcancelstate(PTHREAD_CANCEL_ENABLE, NULL);
