@@ -13,7 +13,6 @@
  * user or derived works could make of it.
  */
 
-#include <assert.h>
 #include <errno.h>
 #include <fcntl.h>
 #include <getopt.h>
@@ -90,9 +89,9 @@ void pass_data(struct pthread_info *pi)
         int res;
         struct termios t;
 
-        /* the attributes of the line are got from the ptys
+        /* the attributes of the line are got from the ptym
          * always, as the user can change them at any time. */
-        tcgetattr(ptys, &t); /* to get speeds, etc */
+        tcgetattr(ptym, &t); /* to get speeds, etc */
         n = delay(&t); /* do the delay. */
         if (n) {
             /* security net. Should never happen */
@@ -105,7 +104,7 @@ void pass_data(struct pthread_info *pi)
                 /* we can receive an interrupt from a SIGWINCH
                  * signal, ignore it and reloop. */
                 if (errno != EINTR)
-                    ERR("read: " ERRNO "\r\n", EPMTS);
+                    ERR("read" ERRNO "\r\n", EPMTS);
                 continue;
             case 0:
                 /* should not happen, as terminals are in raw mode.
@@ -118,14 +117,12 @@ void pass_data(struct pthread_info *pi)
                 p = pi->buffer;
                 while (n > 0) {
                     res = write(pi->to_fd, p, n);
-                    if (res >= 0) {
-                        n -= res;
-                        p += res;
-                        continue;
-                    }
                     /* res < 0 */
-                    if (errno != EINTR)
-                        ERR("write: " ERRNO "\r\n", EPMTS);
+                    if ((res < 0) && (errno != EINTR))
+                        ERR("write" ERRNO "\r\n", EPMTS);
+                    if (res > 0) {
+                        n -= res; p += res;
+                    }
                 }
             } /* switch */
         } /* if */
@@ -138,8 +135,6 @@ void *pthread_body_writer(void *_pi)
 
     LOG("id=%p, from_fd=%d, to_fd=%d, name=%s\r\n",
             pi->id, pi->from_fd, pi->to_fd, pi->name);
-    pthread_setcanceltype(PTHREAD_CANCEL_ASYNCHRONOUS, NULL);
-    pthread_setcancelstate(PTHREAD_CANCEL_ENABLE, NULL);
     pass_data(pi);
     return NULL;
 } /* pthread_body_writer */
@@ -153,8 +148,8 @@ void *pthread_body_reader(void *_pi)
     pthread_setcanceltype(PTHREAD_CANCEL_ASYNCHRONOUS, NULL);
     pthread_setcancelstate(PTHREAD_CANCEL_ENABLE, NULL);
 
-    /* pass the tty config to the slave process at the beginning. */
-    tcsetattr(pi->to_fd, TCSAFLUSH, &saved_tty);
+    /* initialize the pty config with the saved one. */
+    tcsetattr(ptym, TCSAFLUSH, &saved_tty);
     pass_data(pi);
     return NULL;
 } /* pthread_body_reader */
@@ -162,13 +157,11 @@ void *pthread_body_reader(void *_pi)
 void pass_winsz(int sig)
 {
     struct winsize ws;
-    int res1, res2;
-
     if ((flags & FLAG_DOWINCH)
             && (ioctl(0, TIOCGWINSZ, &ws)
                 || ioctl(ptym, TIOCSWINSZ, &ws)))
     {
-        WARN("cannot pass WINSZ from stdin to master pty: "
+        WARN("cannot pass WINSZ from stdin to master pty"
                 ERRNO ", disable it.\r\n", EPMTS);
         flags &= ~FLAG_DOWINCH; /* disable */
     }
@@ -204,19 +197,12 @@ int main(int argc, char **argv)
     if (flags & FLAG_DOWINCH) {
         int res = ioctl(0, TIOCGWINSZ, &saved_window_size);
         if (res < 0) {
-            WARN("winsize:" ERRNO ", disabling\n", EPMTS);
+            WARN("winsize" ERRNO ", disabling\n", EPMTS);
             flags &= ~FLAG_DOWINCH;
         }
     }
 
-    res = openpty(&ptym, &ptys, pty_name, &saved_tty, &saved_window_size);
-    LOG("openpty => %d\n", res);
-    if (res < 0) {
-        ERR("openpty: " ERRNO "\n", EPMTS);
-    }
-
-    child_pid = fork();
-
+    child_pid = forkpty(&ptym, pty_name, &saved_tty, &saved_window_size);
     switch(child_pid) {
     case -1:
         ERR("fork" ERRNO "\n", EPMTS);
@@ -225,27 +211,19 @@ int main(int argc, char **argv)
     case 0: { /* child process */
             int res;
 
-            res = login_tty(ptys);
-            if (res < 0) {
-                ERR("logintty:%s: " ERRNO "\n", pty_name, EPMTS);
-            }
-
-            close(ptym); close(ptys);
-
             if (argc) {
+                LOG("execvp: %s <args>\n", argv[0]);
                 execvp(argv[0], argv);
                 ERR("execvp: %s" ERRNO "\r\n", argv[0], EPMTS);
             } else {
                 char *shellenv = "SHELL";
                 char *shell = getenv(shellenv);
-
                 if (!shell) {
                     struct passwd *u = getpwnam(getlogin());
                     if (!u)
                         ERR("getpwnam failed\r\n");
                     shell = u->pw_shell;
                 } /* if */
-            
                 LOG("execlp: %s\n", shell);
                 execlp(shell, shell, NULL);
                 ERR("execlp: %s" ERRNO "\r\n", shell, EPMTS);
@@ -259,18 +237,18 @@ int main(int argc, char **argv)
             struct sigaction sa;
             struct termios stty_raw = saved_tty;
 
-            LOG("fork: child_pid == %d, ptym=%d, ptys=%d, "
+            LOG("fork: child_pid == %d, ptym=%d, "
                     "pty_name=[%s]\n",
-                    child_pid, ptym, ptys, pty_name);
+                    child_pid, ptym, pty_name);
 
             cfmakeraw(&stty_raw);
             res = tcsetattr(0, TCSAFLUSH, &stty_raw);
             if (res < 0) {
-                ERR("tcsetattr(ptym, ...): " ERRNO "\n", EPMTS);
+                ERR("tcsetattr(ptym, ...)" ERRNO "\r\n", EPMTS);
             } /* if */
 
             if (flags & FLAG_DOWINCH) {
-                LOG("installing signal handler\n");
+                LOG("installing signal handler\r\n");
                 memset(&sa, 0, sizeof sa);
                 sa.sa_handler = pass_winsz;
                 sigaction(SIGWINCH, &sa, NULL);
@@ -287,7 +265,7 @@ int main(int argc, char **argv)
                         &p_in));
             LOG("pthread_create: id=%p, res=%d\r\n", p_in.id, res);
             if (res < 0)
-                ERR("pthread_create: " ERRNO "\r\n", EPMTS);
+                ERR("pthread_create" ERRNO "\r\n", EPMTS);
 
             res = pthread_create(
                     &p_out.id,
@@ -299,7 +277,7 @@ int main(int argc, char **argv)
                         &p_out));
             LOG("pthread_create: id=%p, res=%d\r\n", p_in.id, res);
             if (res < 0)
-                ERR("pthread_create: " ERRNO "\r\n", EPMTS);
+                ERR("pthread_create" ERRNO "\r\n", EPMTS);
 
             /* wait for subprocess to terminate */
             wait(&exit_code);
@@ -324,8 +302,8 @@ int main(int argc, char **argv)
              * follow the same procedure (first with stdin, then
              * with stdout) so we configure the same settings
              * to the same channel as in the beginning. */
-            res = tcsetattr(0, TCSAFLUSH, &saved_tty);
-            LOG("tcsetattr(0, TCSAFLUSH, &saved_tty) => %d\n", res);
+            res = tcsetattr(0, TCSADRAIN, &saved_tty);
+            LOG("tcsetattr(0, TCSADRAIN, &saved_tty) => %d\n", res);
             if (res < 0) {
                 LOG("tcsetattr(0, ...): ERROR" ERRNO "\n", EPMTS);
             } /* if */
