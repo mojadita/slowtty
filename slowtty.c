@@ -1,7 +1,16 @@
-/* slowtty.c -- program to slow down the output of characters to be able to follow
- * output as if a slow terminal were attached to the computer.
+/* slowtty.c -- program to slow down the output of characters to be able
+ * to follow output as if a slow terminal were attached to the computer.
  * Author: Luis Colorado <luiscoloradourcola@gmail.com>
- * Copyright: (C) 2015 LUIS COLORADO.  This is open source copyrighted software.
+ * Date: Wed Aug  3 08:12:26 EEST 2016
+ * Copyright: (C) 2015 LUIS COLORADO.
+ * This is open source copyrighted software according to the BSD license.
+ * You can copy and distribute freely this piece of software, in source
+ * or binary form, agreeing in that you are not going to eliminate the
+ * above copyright notice and author from the source code or binary
+ * announcements the program could make.
+ * The software is distributed 'AS IS' which means that the author doesn't
+ * accept any liabilities or responsibilities derived of the use the final
+ * user or derived works could make of it.
  */
 
 #include <assert.h>
@@ -188,6 +197,11 @@ int main(int argc, char **argv)
         }
     }
 
+    /* XXX: We need to change the forkpty by its internals as we
+     * need to access the ptyslave descriptor in the parent process,
+     * and unfortunately, forkpty(3) doesn't expose it.  It is
+     * needed in the parent process to pass up the window change
+     * condition. */
     child_pid = forkpty(&ptym, pty_name, &saved_tty, &window_size);
 
     switch(child_pid) {
