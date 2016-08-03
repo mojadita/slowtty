@@ -38,17 +38,17 @@
 #define EPMTS strerror(errno), errno
 /* XXX: fix with a portable parameter passing way */
 #define WARN(x, args...) do { \
-        fprintf(stderr, D("WARNING: " x), args); \
+        fprintf(stderr, D("WARNING: " x), ##args); \
     } while (0)
 #define ERR(x, args...) do { \
-        fprintf(stderr, D("ERROR: " x ), args); \
+        fprintf(stderr, D("ERROR: " x ), ##args); \
         exit(EXIT_FAILURE); \
     } while (0)
 #define LOG(x, args...) do { \
         if (flags & FLAG_VERBOSE) { \
             fprintf(stderr, \
                 D("INFO: " x), \
-                args); \
+                ##args); \
         } \
     } while (0)
 
@@ -192,7 +192,7 @@ int main(int argc, char **argv)
     argc -= optind; argv += optind;
 
     if (!isatty(0)) {
-        ERR("stdin is not a tty, aborting\n", NULL);
+        ERR("stdin is not a tty, aborting\n");
     }
 
     /* we obtain the tty settings from stdin . */
@@ -242,7 +242,7 @@ int main(int argc, char **argv)
                 if (!shell) {
                     struct passwd *u = getpwnam(getlogin());
                     if (!u)
-                        ERR("getpwnam failed\r\n", NULL);
+                        ERR("getpwnam failed\r\n");
                     shell = u->pw_shell;
                 } /* if */
             
@@ -270,7 +270,7 @@ int main(int argc, char **argv)
             } /* if */
 
             if (flags & FLAG_DOWINCH) {
-                LOG("installing signal handler\n", NULL);
+                LOG("installing signal handler\n");
                 memset(&sa, 0, sizeof sa);
                 sa.sa_handler = pass_winsz;
                 sigaction(SIGWINCH, &sa, NULL);
@@ -298,7 +298,8 @@ int main(int argc, char **argv)
                         "WRITE",
                         &p_out));
             LOG("pthread_create: id=%p, res=%d\r\n", p_in.id, res);
-            if (res < 0) ERR("pthread_create: " ERRNO "\r\n", EPMTS);
+            if (res < 0)
+                ERR("pthread_create: " ERRNO "\r\n", EPMTS);
 
             /* wait for subprocess to terminate */
             wait(&exit_code);
