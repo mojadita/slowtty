@@ -88,6 +88,19 @@ struct pthread_info *init_pthread_info(
     return pi;
 } /* init_pthread_info */
 
+void atexit_handler(void)
+{
+    /* restore the settings from the saved ones. We
+     * follow the same procedure (first with stdin, then
+     * with stdout) so we configure the same settings
+     * to the same channel as in the beginning. */
+    int res = tcsetattr(0, TCSADRAIN, &saved_tty);
+    LOG("tcsetattr(0, TCSADRAIN, &saved_tty) => %d\n", res);
+    if (res < 0) {
+        LOG("tcsetattr(0, ...): ERROR" ERRNO "\n", EPMTS);
+    } /* if */
+}
+
 void pass_data(struct pthread_info *pi)
 {
     for (;;) {
@@ -111,12 +124,12 @@ void pass_data(struct pthread_info *pi)
                 /* we can receive an interrupt from a SIGWINCH
                  * signal, ignore it and reloop. */
                 if (errno != EINTR)
-                    ERR("read" ERRNO "\r\n", EPMTS);
+                    ERR("read(fd=%d)" ERRNO "\r\n", pi->from_fd, EPMTS);
                 continue;
             case 0:
                 /* should not happen, as terminals are in raw mode.
                  */
-                LOG("EOF in %s thread\r\n", pi->name);
+                LOG("EOF(fd=%d) in %s thread\r\n", pi->from_fd, pi->name);
                 return;
             default:
                 /* we did read something. try to write to the
@@ -126,7 +139,7 @@ void pass_data(struct pthread_info *pi)
                     res = write(pi->to_fd, p, n);
                     /* res < 0 */
                     if ((res < 0) && (errno != EINTR))
-                        ERR("write" ERRNO "\r\n", EPMTS);
+                        ERR("write(fd=%d)" ERRNO "\r\n", pi->to_fd, EPMTS);
                     if (res > 0) {
                         n -= res; p += res;
                     }
@@ -248,6 +261,7 @@ int main(int argc, char **argv)
                     "pty_name=[%s]\n",
                     child_pid, ptym, pty_name);
 
+            atexit(atexit_handler);
             cfmakeraw(&stty_raw);
             res = tcsetattr(0, TCSAFLUSH, &stty_raw);
             if (res < 0) {
@@ -304,16 +318,6 @@ int main(int argc, char **argv)
             LOG("pthread_join(%p, NULL);...\r\n", p_in.id);
             res = pthread_join(p_in.id, NULL);
             LOG("pthread_join(%p, NULL); => %d\r\n", p_in.id, res);
-
-            /* restore the settings from the saved ones. We
-             * follow the same procedure (first with stdin, then
-             * with stdout) so we configure the same settings
-             * to the same channel as in the beginning. */
-            res = tcsetattr(0, TCSADRAIN, &saved_tty);
-            LOG("tcsetattr(0, TCSADRAIN, &saved_tty) => %d\n", res);
-            if (res < 0) {
-                LOG("tcsetattr(0, ...): ERROR" ERRNO "\n", EPMTS);
-            } /* if */
 
             /* exit with the subprocess exit code */
             LOG("exit(%d);\n", WEXITSTATUS(exit_code));
