@@ -11,7 +11,7 @@ RM = rm -f
 
 CFLAGS	+= -pthread
 DMOD	= -m 0755
-XMOD	= -m 0755
+XMOD	= -m 0711
 FMOD	= -m 0644
 UMOD	= -o root -g wheel
 
