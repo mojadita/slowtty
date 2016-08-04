@@ -320,7 +320,7 @@ int main(int argc, char **argv)
             LOG("pthread_join(%p, NULL); => %d\r\n", p_in.id, res);
 
             /* exit with the subprocess exit code */
-            LOG("exit(%d);\n", WEXITSTATUS(exit_code));
+            LOG("exit(%d);\r\n", WEXITSTATUS(exit_code));
             exit(WEXITSTATUS(exit_code));
         } /* case */
     } /* switch */
