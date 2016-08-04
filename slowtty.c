@@ -57,6 +57,11 @@
                 ##args); \
         } \
     } while (0)
+#define ADD(x, args...) do { \
+        if (flags & FLAG_VERBOSE) { \
+            fprintf(stderr, x, ##args); \
+        } \
+    } while (0)
 
 int ptym, ptys;
 /* to recover at the end and pass config to slave at beginning */
@@ -170,7 +175,10 @@ void *pthread_body_reader(void *_pi)
 
     /* initialize the pty config with the saved one. */
     tcsetattr(ptym, TCSAFLUSH, &saved_tty);
+
+    /* ... and run */
     pass_data(pi);
+
     return NULL;
 } /* pthread_body_reader */
 
@@ -204,17 +212,20 @@ int main(int argc, char **argv)
 
     argc -= optind; argv += optind;
 
+    LOG("isatty(0)\n");
     if (!isatty(0)) {
         ERR("stdin is not a tty, aborting\n");
     }
 
     /* we obtain the tty settings from stdin . */
+    LOG("tcgetattr(0, &saved_tty);\n");
     if (tcgetattr(0, &saved_tty) < 0) {
         ERR("tcgetattr" ERRNO "\n", EPMTS);
     }
 
     /* get the window size */
     if (flags & FLAG_DOWINCH) {
+        LOG("ioctl(0, TIOCGWINSZ, &saved_window_size);\n");
         int res = ioctl(0, TIOCGWINSZ, &saved_window_size);
         if (res < 0) {
             WARN("winsize" ERRNO ", disabling\n", EPMTS);
@@ -222,6 +233,9 @@ int main(int argc, char **argv)
         }
     }
 
+    /* flush all descriptors before forking (so no repeated messages
+     * on stdout). */
+    fflush(NULL);
     child_pid = forkpty(&ptym, pty_name, &saved_tty, &saved_window_size);
     switch(child_pid) {
     case -1:
@@ -232,21 +246,29 @@ int main(int argc, char **argv)
             int res;
 
             if (argc) {
-                LOG("execvp: %s <args>\n", argv[0]);
+                int i;
+                LOG("execvp: %s", argv[0]);
+                for (i = 1; i < argc; i++) {
+                    ADD(" %s", argv[i]);
+                }
+                ADD("\n");
                 execvp(argv[0], argv);
-                ERR("execvp: %s" ERRNO "\r\n", argv[0], EPMTS);
+                ERR("execvp: %s" ERRNO "\n", argv[0], EPMTS);
             } else {
                 char *shellenv = "SHELL";
                 char *shell = getenv(shellenv);
-                if (!shell) {
+                if (shell) {
+                    LOG("Got shell from environment variable SHELL\n");
+                } else {
                     struct passwd *u = getpwnam(getlogin());
                     if (!u)
-                        ERR("getpwnam failed\r\n");
+                        ERR("getpwnam failed\n");
                     shell = u->pw_shell;
+                    LOG("Got shell from /etc/passwd file\n");
                 } /* if */
                 LOG("execlp: %s\n", shell);
                 execlp(shell, shell, NULL);
-                ERR("execlp: %s" ERRNO "\r\n", shell, EPMTS);
+                ERR("execlp: %s" ERRNO "\n", shell, EPMTS);
             } /* if */
             /* NOTREACHED */
         } /* case */
@@ -257,15 +279,20 @@ int main(int argc, char **argv)
             struct sigaction sa;
             struct termios stty_raw = saved_tty;
 
-            LOG("fork: child_pid == %d, ptym=%d, "
+            LOG("forkpty: child_pid == %d, ptym=%d, "
                     "pty_name=[%s]\n",
                     child_pid, ptym, pty_name);
 
+            /* from this point on, we have to use \r in addition
+             * to \n, as we have switched to raw mode (in the parent
+             * process)  So we first do a fflush(3) to dump all
+             * data. */
+            fflush(NULL); 
             atexit(atexit_handler);
             cfmakeraw(&stty_raw);
             res = tcsetattr(0, TCSAFLUSH, &stty_raw);
             if (res < 0) {
-                ERR("tcsetattr(ptym, ...)" ERRNO "\r\n", EPMTS);
+                ERR("tcsetattr(ptym, ...)" ERRNO "\n", EPMTS);
             } /* if */
 
             if (flags & FLAG_DOWINCH) {
@@ -284,7 +311,8 @@ int main(int argc, char **argv)
                         0, ptym,
                         "READ",
                         &p_in));
-            LOG("pthread_create: id=%p, res=%d\r\n", p_in.id, res);
+            LOG("pthread_create: id=%p, name=%s, res=%d\r\n", 
+                    p_in.id, p_in.name, res);
             if (res < 0)
                 ERR("pthread_create" ERRNO "\r\n", EPMTS);
 
@@ -296,7 +324,8 @@ int main(int argc, char **argv)
                         ptym, 1, 
                         "WRITE",
                         &p_out));
-            LOG("pthread_create: id=%p, res=%d\r\n", p_in.id, res);
+            LOG("pthread_create: id=%p, name=%s, res=%d\r\n", 
+                    p_out.id, p_out.name, res);
             if (res < 0)
                 ERR("pthread_create" ERRNO "\r\n", EPMTS);
 
