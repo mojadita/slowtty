@@ -13,12 +13,12 @@ CFLAGS	+= -pthread
 DMOD	= -m 0755
 XMOD	= -m 0755
 FMOD	= -m 0644
-#UMOD	= -o root -g wheel
+UMOD	= -o root -g wheel
 
 targets = slowtty
 
 slowtty_objs = slowtty.o delay.o
-slowtty_libs = -lutil
+slowtty_libs = -lutil -lpthread
 
 objs = $(slowtty_objs)
 
