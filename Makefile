@@ -13,7 +13,7 @@ CFLAGS	+= -pthread
 DMOD	= -m 0755
 XMOD	= -m 0711
 FMOD	= -m 0644
-UMOD	= -o root -g wheel
+UMOD	= -o `id -u` -g `id -g`
 
 targets = slowtty
 
@@ -28,6 +28,8 @@ clean:
 install: $(targets)
 	$(INSTALL) $(IFLAGS) $(DMOD) $(UMOD) -d $(bindir)
 	$(INSTALL) $(IFLAGS) $(DMOD) $(XMOD) slowtty $(bindir)
+deinstall:
+	$(RM) $(bindir)/slowtty
 
 slowtty: $(slowtty_objs)
 	$(CC) $(CFLAGS) $(LDFLAGS) -o $@ $($@_objs) $($@_libs)
