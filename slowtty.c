@@ -16,6 +16,8 @@
 #include <errno.h>
 #include <fcntl.h>
 #include <getopt.h>
+#include <libutil.h>
+#include <limits.h>
 #include <pthread.h>
 #include <pwd.h>
 #include <signal.h>
@@ -70,6 +72,8 @@ struct winsize saved_window_size;
 
 volatile int flags = FLAG_DOWINCH;
 
+size_t bufsz = BUFSIZ;
+
 struct pthread_info {
     pthread_t       id;
     int             from_fd,
@@ -120,8 +124,8 @@ void pass_data(struct pthread_info *pi)
         n = delay(&t); /* do the delay. */
         if (n) {
             /* security net. Should never happen */
-            if (n > sizeof pi->buffer)
-                n = sizeof pi->buffer;
+            if (n > bufsz)
+                n = bufsz;
             /* read the bytes indicated by the delay routine */
             n = read(pi->from_fd, pi->buffer, n);
             switch(n) {
@@ -200,13 +204,19 @@ int main(int argc, char **argv)
     int shelpid;
     int opt, res;
     pid_t child_pid;
-    char pty_name[2000];
+    char pty_name[PATH_MAX];
 
-    while ((opt = getopt(argc, argv, "tvw")) != EOF) {
+    while ((opt = getopt(argc, argv, "tvws:")) != EOF) {
         switch (opt) {
         case 't': flags |=  FLAG_NOTCSET; break;
         case 'v': flags |=  FLAG_VERBOSE; break;
         case 'w': flags &= ~FLAG_DOWINCH; break;
+		case 's': bufsz = atoi(optarg);
+			if (bufsz <= 0 || bufsz >= BUFSIZ) {
+				WARN("buffer size set to default due to invalid value (%s) passed\n",
+					optarg);
+				bufsz = BUFSIZ;
+			} break;
         } /* switch */
     } /* while */
 
