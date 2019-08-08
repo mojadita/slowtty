@@ -206,8 +206,9 @@ int main(int argc, char **argv)
     pid_t child_pid;
     char pty_name[PATH_MAX];
 
-    while ((opt = getopt(argc, argv, "tvws:")) != EOF) {
+    while ((opt = getopt(argc, argv, "ltvws:")) != EOF) {
         switch (opt) {
+		case 'l': flags |=  FLAG_LOGIN; break;
         case 't': flags |=  FLAG_NOTCSET; break;
         case 'v': flags |=  FLAG_VERBOSE; break;
         case 'w': flags &= ~FLAG_DOWINCH; break;
@@ -267,6 +268,7 @@ int main(int argc, char **argv)
             } else {
                 char *shellenv = "SHELL";
                 char *shell = getenv(shellenv);
+				char cmd[PATH_MAX];
                 if (shell) {
                     LOG("Got shell from environment variable SHELL\n");
                 } else {
@@ -276,8 +278,13 @@ int main(int argc, char **argv)
                     shell = u->pw_shell;
                     LOG("Got shell from /etc/passwd file\n");
                 } /* if */
-                LOG("execlp: %s\n", shell);
-                execlp(shell, shell, NULL);
+				snprintf(cmd, sizeof cmd, "%s%s",
+					flags & FLAG_LOGIN
+						? "-"
+						: "",
+					shell);
+                LOG("execlp: %s\n", cmd);
+                execlp(shell, cmd, NULL);
                 ERR("execlp: %s" ERRNO "\n", shell, EPMTS);
             } /* if */
             /* NOTREACHED */

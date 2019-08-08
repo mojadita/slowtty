@@ -37,17 +37,9 @@ utility just spawns a shell (as specified by the
 .Cm $SHELL
 environment variable.)  The shell can be made a login shell
 with the option
-.Cm -
+.Cm -l
 (see below)
 .Bl -tag 
-.It Fl ""
-prependeds a
-.Cm -
-to the program name argument in the command to execute.
-This, when used with a shell command, has the effect of making
-the shell a login shell, so it will execute the login scripts
-and do user session initialization as if a normal login has been
-done.
 .It Fl b
 Allows to set the internal buffer size used to read characters
 from the slave tty.  Normally this is adjusted dynamically so
@@ -63,6 +55,14 @@ This flag makes the
 program verbose, outputting log lines to stderr about what
 it is doing.
 It is useful for debugging purposes.
+.It Fl "l"
+prependeds a
+.Cm -
+to the program name argument in the command to execute.
+This, when used with a shell command, has the effect of making
+the shell a login shell, so it will execute the login scripts
+and do user session initialization as if a normal login has been
+done.
 .It Fl t
 With this option,
 .Nm

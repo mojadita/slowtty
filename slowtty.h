@@ -10,6 +10,7 @@
 #define FLAG_VERBOSE    (1 << 0)
 #define FLAG_DOWINCH    (1 << 1)
 #define FLAG_NOTCSET    (1 << 2)
+#define FLAG_LOGIN		(1 << 3)
 extern volatile int flags;
 
 #endif /* _SLOWTTY_H */
