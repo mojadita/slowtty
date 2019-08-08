@@ -42,27 +42,33 @@
 #include "delay.h"
 
 #define D(x) __FILE__":%d: %s: " x, __LINE__, __func__
+
 #define ERRNO ": %s (errno=%d)"
+
 #define EPMTS strerror(errno), errno
-/* XXX: fix with a portable parameter passing way */
-#define WARN(x, args...) do { \
-        fprintf(stderr, D("WARNING: " x), ##args); \
+
+#define WARN(_fmt, args...) do {                      \
+        fprintf(stderr, D("WARNING: " _fmt), ##args); \
     } while (0)
-#define ERR(x, args...) do { \
-        fprintf(stderr, D("ERROR: " x ), ##args); \
-        exit(EXIT_FAILURE); \
+
+#define ERR(_fmt, args...) do {                       \
+        fprintf(stderr, D("ERROR: " _fmt ), ##args);  \
+        exit(EXIT_FAILURE);                           \
     } while (0)
-#define LOG(x, args...) do { \
-        if (flags & FLAG_VERBOSE) { \
-            fprintf(stderr, \
-                D("INFO: " x), \
-                ##args); \
-        } \
+
+#define LOG(_fmt, args...) do {                       \
+        if (flags & FLAG_VERBOSE) {                   \
+            fprintf(stderr,                           \
+                D("INFO: " _fmt),                     \
+                ##args);                              \
+        }                                             \
     } while (0)
-#define ADD(x, args...) do { \
-        if (flags & FLAG_VERBOSE) { \
-            fprintf(stderr, x, ##args); \
-        } \
+
+/* adds to a LOG() macro call (to continue) */
+#define ADD(_fmt, args...) do {                       \
+        if (flags & FLAG_VERBOSE) {                   \
+            fprintf(stderr, _fmt, ##args);            \
+        }                                             \
     } while (0)
 
 int ptym, ptys;
@@ -246,6 +252,7 @@ int main(int argc, char **argv)
     /* flush all descriptors before forking (so no repeated messages
      * on stdout). */
     fflush(NULL);
+
     child_pid = forkpty(&ptym, pty_name, &saved_tty, &saved_window_size);
     switch(child_pid) {
     case -1:
@@ -257,9 +264,9 @@ int main(int argc, char **argv)
 
             if (argc) {
                 int i;
-                LOG("execvp: %s", argv[0]);
-                for (i = 1; i < argc; i++) {
-                    ADD(" %s", argv[i]);
+                LOG("execvp:");
+                for (i = 0; i < argc; i++) {
+                    ADD("[%s]", argv[i]);
                 }
                 ADD("\n");
                 execvp(argv[0], argv);

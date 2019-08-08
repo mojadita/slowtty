@@ -1,11 +1,27 @@
-/* delay.c -- routine to delay for amount 0.025s <= d <= 0.050s
- * and determine number of characters to emit from a baudrate.
+/* delay.c -- routine to delay for amount 0.04s and calculate the
+ * number of characters that can be output in that time, based on the
+ * baudrate used in the tty device.
  * Author: Luis Colorado <luiscoloradourcola@gmail.com>
  * Date: jue jun 25 08:35:40 EEST 2015
- * Version: 0.9
+ * Version: 0.10
  * Disclaimer: (C) 2015 Luis Colorado <luiscoloradourcola@gmail.com>
  *             all rights reserved.
  */
+
+/* We consider the time divided in tics of 0.04s (25 frames/sec) and, to
+ * be precise, we stick on 0.04s tic marks, so that value is, indeed, fixed
+ * as a constant (not configurable).
+ * 
+ * Based on the baudrate (we check if baudrate, char size, stopbits or parity
+ * has changed and only do this calculation in case of a change.) we then
+ * calculate the amount of time a single character needs to be sent over the
+ * line, and based on this we get the number of characters that can be sen
+ * in the next tick time.
+ *
+ * We do accumulate the fraction of char allowable, if there's no enough time
+ * to send another full character, and accumulate that fraction, based on the
+ * amount resultant, so we get an exact number of characters to be written
+ * to the output device, rounded to one char. */
 
 #include <stdio.h>
 #include <stdlib.h>
@@ -17,8 +33,8 @@
 #include "slowtty.h"
 #include "delay.h"
 
-#ifndef MIN_DELAY  /* so we can change the value on the command line */
-#define MIN_DELAY   25000
+#ifndef MIN_DELAY  /* so we can change the value on the Makefile */
+#define MIN_DELAY   25000000 /* nsecs.  = 0.025s. */
 #endif
 
 #ifndef NDEBUG
@@ -28,10 +44,10 @@
 #define D(X) "%s:%d: %s: " X, __FILE__, __LINE__, __func__
 
 #if NDEBUG
-#  define DEB(X, args...) do { \
-		if (flags & FLAG_VERBOSE) { \
+#  define DEB(X, args...) do {           \
+		if (flags & FLAG_VERBOSE) {      \
 			fprintf(stderr, D(X), args); \
-		} \
+		}                                \
 	} while(0)
 #else
 #  define DEB(X, args...)
@@ -42,7 +58,12 @@
  * @return the baudrate as an integer. */
 static unsigned long getthebr(struct termios *t)
 {
-#define B(_n) case B##_n: do { DEB("setting %d baudios\r\n", _n); return (_n); } while(0)
+
+#define B(_n) case B##_n: do {                \
+		DEB("setting is %d baudios\r\n", _n); \
+		return (_n);                          \
+	} while(0)
+
     switch(cfgetospeed(t)) {
         B(50); B(75); B(110);
         B(134); B(150); B(200); B(300);
