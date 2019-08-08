@@ -6,6 +6,9 @@
 
 prefix= $(HOME)
 bindir= $(prefix)/bin
+mandir= $(prefix)/man
+man1dir= $(mandir)/man1
+
 INSTALL=install
 RM = rm -f
 
@@ -26,8 +29,9 @@ all: $(targets)
 clean:
 	$(RM) $(targets) $(objs)
 install: $(targets)
-	$(INSTALL) $(IFLAGS) $(DMOD) $(UMOD) -d $(bindir)
+	$(INSTALL) $(IFLAGS) $(DMOD) $(UMOD) -d $(bindir) $(man1dir)
 	$(INSTALL) $(IFLAGS) $(DMOD) $(XMOD) slowtty $(bindir)
+	$(INSTALL) $(IFLAGS) $(FMOD) slowtty.1 $(man1dir)
 deinstall:
 	$(RM) $(bindir)/slowtty
 
