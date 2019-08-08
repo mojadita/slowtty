@@ -25,23 +25,22 @@ default in `${HOME}/bin`.  If you want to install it in the
 
 and you'll have it installed properly.
 
----
-
+# MANPAGE
 SLOWTTY(1) - FreeBSD General Commands Manual
 
-### NAME
+## NAME
 
 **slowtty** - a program simulate baudrates of old ttys over networked
 lines.
 
-### SYNOPSIS
+## SYNOPSIS
 
 **slowtty**
 \[**-dltw**]
 \[**-b**&nbsp;*bufsize*]
 \[**command**&nbsp;\[*arguments*&nbsp;**...**]]
 
-### DESCRIPTION
+## DESCRIPTION
 
 The
 **slowtty**
@@ -117,7 +116,7 @@ with the option
 > tty, so the program run is not aware of terminal window size
 > changes.
 
-### AUTHOR
+## AUTHOR
 
 Luis Colorado &lt;[luiscoloradourcola@gmail.com](mailto:luiscoloradourcola@gmail.com)&gt;
 
