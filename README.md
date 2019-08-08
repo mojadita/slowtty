@@ -25,12 +25,15 @@ default in `${HOME}/bin`.  If you want to install it in the
 
 and you'll have it installed properly.
 
+---
+
 # MANPAGE
+
 SLOWTTY(1) - FreeBSD General Commands Manual
 
 ## NAME
 
-**slowtty** - a program simulate baudrates of old ttys over networked
+**slowtty** - a program to simulate baudrates of old ttys over networked
 lines.
 
 ## SYNOPSIS
