@@ -41,65 +41,26 @@
 #include "slowtty.h"
 #include "delay.h"
 
-#define D(x) __FILE__":%d: %s: " x, __LINE__, __func__
-
-#define ERRNO ": %s (errno=%d)"
-
-#define EPMTS strerror(errno), errno
-
-#define WARN(_fmt, args...) do {                      \
-        fprintf(stderr, D("WARNING: " _fmt), ##args); \
-    } while (0)
-
-#define ERR(_fmt, args...) do {                       \
-        fprintf(stderr, D("ERROR: " _fmt ), ##args);  \
-        exit(EXIT_FAILURE);                           \
-    } while (0)
-
-#define LOG(_fmt, args...) do {                       \
-        if (flags & FLAG_VERBOSE) {                   \
-            fprintf(stderr,                           \
-                D("INFO: " _fmt),                     \
-                ##args);                              \
-        }                                             \
-    } while (0)
-
-/* adds to a LOG() macro call (to continue) */
-#define ADD(_fmt, args...) do {                       \
-        if (flags & FLAG_VERBOSE) {                   \
-            fprintf(stderr, _fmt, ##args);            \
-        }                                             \
-    } while (0)
-
 int ptym, ptys;
+
 /* to recover at the end and pass config to slave at beginning */
 struct termios saved_tty;
+
 struct winsize saved_window_size;
 
 volatile int flags = FLAG_DOWINCH;
-
-size_t bufsz = BUFSIZ;
-
-struct pthread_info {
-    pthread_t       id;
-    int             from_fd,
-                    to_fd;
-    struct termios  saved_cfg;
-    char           *name;
-    unsigned char   buffer[BUFSIZ];
-    size_t          buffsz;
-}; /* struct pthread_info */
+size_t bufsz;
 
 struct pthread_info *init_pthread_info(
+        struct pthread_info    *pi,
         int                     from_fd,
         int                     to_fd,
-        char                   *name,
-        struct pthread_info    *pi)
+        char                   *name)
 {
     pi->from_fd     = from_fd;
     pi->to_fd       = to_fd;
     pi->name        = name;
-    pi->buffsz      = 0;
+	rb_init(&pi->b);
     return pi;
 } /* init_pthread_info */
 
@@ -119,48 +80,63 @@ void atexit_handler(void)
 void pass_data(struct pthread_info *pi)
 {
     for (;;) {
-        int n;
-        unsigned char *p;
-        int res;
-        struct termios t;
 
-        /* the attributes of the line are got from the ptym
-         * always, as the user can change them at any time. */
-        tcgetattr(ptym, &t); /* to get speeds, etc */
-        n = delay(&t); /* do the delay. */
-        if (n) {
-            /* security net. Should never happen */
-            if (n > bufsz)
-                n = bufsz;
-            /* read the bytes indicated by the delay routine */
-            n = read(pi->from_fd, pi->buffer, n);
-            switch(n) {
-            case -1:
+        int window = delay(pi); /* do the delay. */
+        if (window == 0) continue; /* nothing to do */
+
+        int to_fill = pi->buffsz - pi->length;
+
+        if (to_fill > 0) { /* if we can read */
+            struct iovec iovec[2],
+                        *iovecp = iovec;
+            size_t iovec_n = 0;
+            iovecp->iov_base = pi->tail;
+            if (pi->tail < pi->header) {
+                iovecp->iov_len = to_fill;
+                iovec_n++;
+            } else { /* pi->header <= pi->tail */
+                if (pi->tail + to_fill > pi->buffer + BUFFER_SIZE) {
+                    iovecp->iov_len = pi->buffer - BUFFERSIZE - pi->tail;
+                    to_fill -= iovecp->iov_len;
+                    iovec_n++; iovecp++;
+                    ipvecp->iov_base = pi->buffer;
+                    iovecp->iov_len = to_fill;
+                    iovec_n++;
+                } else {
+                    iovecp->iov_len = to_fill;
+                    iovec_n++;
+                }
+            }
+            ssize_t n = readv(pi->from_fd, iovec, iovecn);
+            if (n < 0) {
                 /* we can receive an interrupt from a SIGWINCH
                  * signal, ignore it and reloop. */
                 if (errno != EINTR)
                     ERR("read(fd=%d)" ERRNO "\r\n", pi->from_fd, EPMTS);
-                continue;
-            case 0:
-                /* should not happen, as terminals are in raw mode.
-                 */
-                LOG("EOF(fd=%d) in %s thread\r\n", pi->from_fd, pi->name);
-                return;
-            default:
-                /* we did read something. try to write to the
-                 * other descriptor. */
-                p = pi->buffer;
-                while (n > 0) {
-                    res = write(pi->to_fd, p, n);
-                    /* res < 0 */
-                    if ((res < 0) && (errno != EINTR))
-                        ERR("write(fd=%d)" ERRNO "\r\n", pi->to_fd, EPMTS);
-                    if (res > 0) {
-                        n -= res; p += res;
-                    }
+            } else if (n > 0) {
+                /* adjust the pointers */
+                pi->tail += n;
+                if (pi->tail >= pi->buffer + BUFFER_SIZE)
+                    pi->tail -= BUFFER_SIZE;
+            }
+        }
+        if (pi->length > 0) {
+            /* TODO: I'm here :) */
+
+        default:
+            /* we did read something. try to write to the
+             * other descriptor. */
+            p = pi->buffer;
+            while (n > 0) {
+                res = write(pi->to_fd, p, n);
+                /* res < 0 */
+                if ((res < 0) && (errno != EINTR))
+                    ERR("write(fd=%d)" ERRNO "\r\n", pi->to_fd, EPMTS);
+                if (res > 0) {
+                    n -= res; p += res;
                 }
-            } /* switch */
-        } /* if */
+            }
+        } /* switch */
     } /* for */
 } /* pass_data */
 
@@ -180,6 +156,7 @@ void *pthread_body_reader(void *_pi)
 
     LOG("id=%p, from_fd=%d, to_fd=%d, name=%s\r\n",
             pi->id, pi->from_fd, pi->to_fd, pi->name);
+
     pthread_setcanceltype(PTHREAD_CANCEL_ASYNCHRONOUS, NULL);
     pthread_setcancelstate(PTHREAD_CANCEL_ENABLE, NULL);
 
@@ -199,8 +176,8 @@ void pass_winsz(int sig)
             && (ioctl(0, TIOCGWINSZ, &ws)
                 || ioctl(ptym, TIOCSWINSZ, &ws)))
     {
-        WARN("cannot pass WINSZ from stdin to master pty"
-                ERRNO ", disable it.\r\n", EPMTS);
+        WARN("cannot pass WINSZ from master pty to slave"
+                ERRNO ", disabling it.\r\n", EPMTS);
         flags &= ~FLAG_DOWINCH; /* disable */
     }
 } /* pass_winsz */
@@ -212,10 +189,10 @@ int main(int argc, char **argv)
     pid_t child_pid;
     char pty_name[PATH_MAX];
 
-    while ((opt = getopt(argc, argv, "tvws:")) != EOF) {
+    while ((opt = getopt(argc, argv, "dtws:")) != EOF) {
         switch (opt) {
+        case 'd': flags |=  FLAG_VERBOSE; break;
         case 't': flags |=  FLAG_NOTCSET; break;
-        case 'v': flags |=  FLAG_VERBOSE; break;
         case 'w': flags &= ~FLAG_DOWINCH; break;
 		case 's': bufsz = atoi(optarg);
 			if (bufsz <= 0 || bufsz >= BUFSIZ) {
@@ -227,11 +204,6 @@ int main(int argc, char **argv)
     } /* while */
 
     argc -= optind; argv += optind;
-
-    LOG("isatty(0)\n");
-    if (!isatty(0)) {
-        ERR("stdin is not a tty, aborting\n");
-    }
 
     /* we obtain the tty settings from stdin . */
     LOG("tcgetattr(0, &saved_tty);\n");
@@ -325,9 +297,9 @@ int main(int argc, char **argv)
                     NULL,
                     pthread_body_reader,
                     init_pthread_info(
+                        &p_in,
                         0, ptym,
-                        "READ",
-                        &p_in));
+                        "READ"));
             LOG("pthread_create: id=%p, name=%s, res=%d\r\n", 
                     p_in.id, p_in.name, res);
             if (res < 0)
@@ -338,9 +310,9 @@ int main(int argc, char **argv)
                     NULL,
                     pthread_body_writer,
                     init_pthread_info(
+                        &p_out,
                         ptym, 1, 
-                        "WRITE",
-                        &p_out));
+                        "WRITE"));
             LOG("pthread_create: id=%p, name=%s, res=%d\r\n", 
                     p_out.id, p_out.name, res);
             if (res < 0)
@@ -348,7 +320,7 @@ int main(int argc, char **argv)
 
             /* wait for subprocess to terminate */
             wait(&exit_code);
-            LOG("wait(&exit_code <= %d);\r\n", exit_code);
+            LOG("wait(&exit_code == %d);\r\n", exit_code);
 
             /* join writing thread */
             LOG("pthread_join(%p, NULL);...\r\n", p_out.id);

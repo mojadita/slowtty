@@ -1,2 +1,4 @@
 slowtty
 *.o
+make.err
+test_ring

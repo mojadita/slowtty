@@ -15,7 +15,9 @@ XMOD	= -m 0711
 FMOD	= -m 0644
 UMOD	= -o `id -u` -g `id -g`
 
-targets = slowtty
+targets = test_ring slowtty
+
+test_ring_objs = test_ring.o ring.o
 
 slowtty_objs = slowtty.o delay.o
 slowtty_libs = -lutil -lpthread
@@ -31,7 +33,10 @@ install: $(targets)
 deinstall:
 	$(RM) $(bindir)/slowtty
 
-slowtty: $(slowtty_objs)
+.for t in $(targets)
+toclean += $($t_objs) $t
+$t: $($t_objs)
 	$(CC) $(CFLAGS) $(LDFLAGS) -o $@ $($@_objs) $($@_libs)
+.endfor
 
 $(slowtty_objs): delay.h slowtty.h
