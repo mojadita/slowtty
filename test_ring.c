@@ -13,6 +13,8 @@
 
 #include "ring.h"
 
+volatile int flags = 0;
+
 #define F(_fmt) "%s:%d: " _fmt, __FILE__, __LINE__
 
 int main(int argc, char **argv)

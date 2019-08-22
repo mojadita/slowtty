@@ -41,13 +41,6 @@
 #include "slowtty.h"
 #include "delay.h"
 
-#ifndef TIC_DELAY  /* so we can change the value on the Makefile */
-#define TIC_DELAY		(40000000) /* nsecs.  = 0.04s. */
-#endif
-#ifndef TICS_PER_SEC
-#define TICS_PER_SEC	(25)
-#endif
-
 /* Get the integer number of bits per second from the c_lflag field
  * @param t struct termios pointer where to get the output baudrate.
  * @return the baudrate as an integer. */
@@ -55,7 +48,7 @@ static unsigned long getthebr(struct termios *t)
 {
 
 #define B(_n) case B##_n: do {                \
-		LOG("setting is %d baudios\r\n", _n); \
+		/*LOG("setting is %d baudios\r\n", _n);*/ \
 		return (_n);                          \
 	} while(0)
 
@@ -88,7 +81,7 @@ unsigned long delay(struct pthread_info *p)
     tcflag_t  new_cflag = saved_tty.c_cflag;
 
     if (   p->svd_bauds != new_baudrate
-        || p->svd_cflag != new_cflag) {
+        || p->svd_cflag != new_cflag) { /* changed parameters */
 
         int bits_per_char;
         switch (new_cflag & CSIZE) { /* character size */
@@ -102,26 +95,33 @@ unsigned long delay(struct pthread_info *p)
 
         p->num = new_baudrate;
         p->den = bits_per_char * TICS_PER_SEC;  /* ticks/sec. */
-        p->acc = p->den / 2;
+		long common_div = gdc(p->num, p->den);
+		if (common_div > 1) {
+			p->num /= common_div;
+			p->den /= common_div;
+		}
+        p->acc = p->den / 2; /* round to half a tic */
 
         LOG("num==%ld, den=%ld, acc=%ld\r\n",
                 p->num, p->den, p->acc);
+		p->svd_bauds = new_baudrate;
+		p->svd_cflag = new_cflag;
     }
 
+	/* now, update */
     p->acc += p->num % p->den;
     p->ctw  = p->num / p->den;
     if (p->acc >= p->den) { /* carry */
         p->ctw++;
         p->acc -= p->den;
     }
+	LOG("p->acc==%ld, p->den==%ld, p->ctw==%ld\r\n",
+		p->acc, p->den, p->ctw);
 
-    res = clock_gettime(CLOCK_REALTIME, &p->tic);
-	if (res) {
-		ERR("clock_gettime" ERRNO "\r\n", EPMTS);
-	}
+	/* add the tic delay */
     p->tic.tv_nsec += TIC_DELAY;
     p->tic.tv_nsec -= p->tic.tv_nsec % TIC_DELAY;
-    if (p->tic.tv_nsec >= 1000000000) {
+    if (p->tic.tv_nsec >= 1000000000) { /* carry */
         p->tic.tv_sec++;
         p->tic.tv_nsec -= 1000000000;
     }

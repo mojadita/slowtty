@@ -28,6 +28,7 @@
 #include <sys/types.h>
 #include <sys/wait.h>
 #include <termios.h>
+#include <time.h>
 #include <unistd.h>
 
 #if HAS_PTY_H
@@ -38,6 +39,7 @@
 #include <libutil.h>
 #endif
 
+#include "ring.h"
 #include "slowtty.h"
 #include "delay.h"
 
@@ -51,7 +53,8 @@ struct winsize saved_window_size;
 volatile int flags = FLAG_DOWINCH;
 size_t bufsz;
 
-struct pthread_info *init_pthread_info(
+static struct pthread_info*
+init_pthread_info(
         struct pthread_info    *pi,
         int                     from_fd,
         int                     to_fd,
@@ -82,61 +85,40 @@ void pass_data(struct pthread_info *pi)
     for (;;) {
 
         int window = delay(pi); /* do the delay. */
+
+        LOG("%s: window = %d\r\n", pi->name, window);
+
         if (window == 0) continue; /* nothing to do */
 
-        int to_fill = pi->buffsz - pi->length;
+        ssize_t to_fill = window - pi->b.rb_size;
 
         if (to_fill > 0) { /* if we can read */
-            struct iovec iovec[2],
-                        *iovecp = iovec;
-            size_t iovec_n = 0;
-            iovecp->iov_base = pi->tail;
-            if (pi->tail < pi->header) {
-                iovecp->iov_len = to_fill;
-                iovec_n++;
-            } else { /* pi->header <= pi->tail */
-                if (pi->tail + to_fill > pi->buffer + BUFFER_SIZE) {
-                    iovecp->iov_len = pi->buffer - BUFFERSIZE - pi->tail;
-                    to_fill -= iovecp->iov_len;
-                    iovec_n++; iovecp++;
-                    ipvecp->iov_base = pi->buffer;
-                    iovecp->iov_len = to_fill;
-                    iovec_n++;
-                } else {
-                    iovecp->iov_len = to_fill;
-                    iovec_n++;
-                }
+			LOG("%s: rb_read(&pi->b, to_fill=%lu, pi->from_fd=%d)\r\n",
+				pi->name, to_fill, pi->from_fd);
+			ssize_t res = rb_read(&pi->b, to_fill, pi->from_fd);
+            if (res < 0) {
+                ERR("%s: read" ERRNO "\n", pi->name, EPMTS);
             }
-            ssize_t n = readv(pi->from_fd, iovec, iovecn);
-            if (n < 0) {
-                /* we can receive an interrupt from a SIGWINCH
-                 * signal, ignore it and reloop. */
-                if (errno != EINTR)
-                    ERR("read(fd=%d)" ERRNO "\r\n", pi->from_fd, EPMTS);
-            } else if (n > 0) {
-                /* adjust the pointers */
-                pi->tail += n;
-                if (pi->tail >= pi->buffer + BUFFER_SIZE)
-                    pi->tail -= BUFFER_SIZE;
-            }
+			clock_gettime(CLOCK_REALTIME, &pi->tic);
+			if (res == 0) {
+				LOG("%s: read: EOF on input\n", pi->name);
+				break;
+			}
+			LOG("%s: rb_read ==> %ld bytes\r\n", pi->name, res);
         }
-        if (pi->length > 0) {
-            /* TODO: I'm here :) */
 
-        default:
-            /* we did read something. try to write to the
-             * other descriptor. */
-            p = pi->buffer;
-            while (n > 0) {
-                res = write(pi->to_fd, p, n);
-                /* res < 0 */
-                if ((res < 0) && (errno != EINTR))
-                    ERR("write(fd=%d)" ERRNO "\r\n", pi->to_fd, EPMTS);
-                if (res > 0) {
-                    n -= res; p += res;
-                }
+        size_t to_write = window <= pi->b.rb_size
+                        ? window
+                        : pi->b.rb_size;
+        if (to_write > 0) {
+			LOG("%s: rb_write(&pi->b, to_write=%lu, pi->to_fd=%d)\r\n",
+				pi->name, to_write, pi->to_fd);
+			ssize_t res = rb_write(&pi->b, to_write, pi->to_fd);
+            if (res < 0) {
+                ERR("%s: write" ERRNO "\n", pi->name, EPMTS);
             }
-        } /* switch */
+			LOG("%s: rb_write ==> %ld bytes\r\n", pi->name, res);
+        }
     } /* for */
 } /* pass_data */
 
@@ -154,18 +136,12 @@ void *pthread_body_reader(void *_pi)
 {
     struct pthread_info *pi = _pi;
 
-    LOG("id=%p, from_fd=%d, to_fd=%d, name=%s\r\n",
-            pi->id, pi->from_fd, pi->to_fd, pi->name);
-
     pthread_setcanceltype(PTHREAD_CANCEL_ASYNCHRONOUS, NULL);
     pthread_setcancelstate(PTHREAD_CANCEL_ENABLE, NULL);
 
-    /* initialize the pty config with the saved one. */
-    tcsetattr(ptym, TCSAFLUSH, &saved_tty);
-
-    /* ... and run */
+    LOG("id=%p, from_fd=%d, to_fd=%d, name=%s\r\n",
+            pi->id, pi->from_fd, pi->to_fd, pi->name);
     pass_data(pi);
-
     return NULL;
 } /* pthread_body_reader */
 
@@ -189,9 +165,10 @@ int main(int argc, char **argv)
     pid_t child_pid;
     char pty_name[PATH_MAX];
 
-    while ((opt = getopt(argc, argv, "dtws:")) != EOF) {
+    while ((opt = getopt(argc, argv, "dltws:")) != EOF) {
         switch (opt) {
         case 'd': flags |=  FLAG_VERBOSE; break;
+		case 'l': flags |=  FLAG_LOGIN;   break;
         case 't': flags |=  FLAG_NOTCSET; break;
         case 'w': flags &= ~FLAG_DOWINCH; break;
 		case 's': bufsz = atoi(optarg);
@@ -228,10 +205,11 @@ int main(int argc, char **argv)
     child_pid = forkpty(&ptym, pty_name, &saved_tty, &saved_window_size);
     switch(child_pid) {
     case -1:
-        ERR("fork" ERRNO "\n", EPMTS);
-        break; /* unneeded, but don't hurt */
+        ERR("forkpty" ERRNO "\n", EPMTS);
+		/* NOTREACHED */
 
-    case 0: { /* child process */
+    case 0: {
+			/* child process */
             int res;
 
             if (argc) {
@@ -264,6 +242,7 @@ int main(int argc, char **argv)
 
     default: { /* parent process */
             struct pthread_info p_in, p_out;
+			struct timespec ts_now;
             int res, exit_code = 0;
             struct sigaction sa;
             struct termios stty_raw = saved_tty;
@@ -277,11 +256,13 @@ int main(int argc, char **argv)
              * process)  So we first do a fflush(3) to dump all
              * data. */
             fflush(NULL); 
-            atexit(atexit_handler);
             cfmakeraw(&stty_raw);
+			stty_raw.c_cc[VMIN] = 1;
+			stty_raw.c_cc[VTIME] = 0;
+            atexit(atexit_handler); /* to restore tty settings */
             res = tcsetattr(0, TCSAFLUSH, &stty_raw);
             if (res < 0) {
-                ERR("tcsetattr(ptym, ...)" ERRNO "\n", EPMTS);
+                ERR("tcsetattr(0, ...)" ERRNO "\n", EPMTS);
             } /* if */
 
             if (flags & FLAG_DOWINCH) {
@@ -292,6 +273,7 @@ int main(int argc, char **argv)
             }
 
             /* create the subthreads to process info */
+			clock_gettime(CLOCK_REALTIME, &p_in.tic);
             res = pthread_create(
                     &p_in.id,
                     NULL,
@@ -299,12 +281,18 @@ int main(int argc, char **argv)
                     init_pthread_info(
                         &p_in,
                         0, ptym,
-                        "READ"));
-            LOG("pthread_create: id=%p, name=%s, res=%d\r\n", 
+                        "READER"));
+            LOG("pthread_create: id=%p, name=%s ==> res=%d\r\n", 
                     p_in.id, p_in.name, res);
             if (res < 0)
                 ERR("pthread_create" ERRNO "\r\n", EPMTS);
 
+			p_out.tic = p_in.tic;
+			p_out.tic.tv_nsec += TIC_DELAY / 2;
+			if (p_out.tic.tv_nsec >= 1000000000) {
+				p_out.tic.tv_sec++;
+				p_out.tic.tv_nsec -= 1000000000;
+			}
             res = pthread_create(
                     &p_out.id,
                     NULL,
@@ -312,8 +300,8 @@ int main(int argc, char **argv)
                     init_pthread_info(
                         &p_out,
                         ptym, 1, 
-                        "WRITE"));
-            LOG("pthread_create: id=%p, name=%s, res=%d\r\n", 
+                        "WRITER"));
+            LOG("pthread_create: id=%p, name=%s ==> res=%d\r\n", 
                     p_out.id, p_out.name, res);
             if (res < 0)
                 ERR("pthread_create" ERRNO "\r\n", EPMTS);
@@ -322,10 +310,17 @@ int main(int argc, char **argv)
             wait(&exit_code);
             LOG("wait(&exit_code == %d);\r\n", exit_code);
 
-            /* join writing thread */
+			/* we cannot wait for the slave device to close, as
+			 * something (e.g. a daemon) can leave it open for
+			 * some strange reason. So, reconfigure the output
+			 * device with the master configuration and close
+			 * the master. That should make the writer thread
+			 * to fail, and we ignore that. Just join the
+			 * writer thread. */
+
             LOG("pthread_join(%p, NULL);...\r\n", p_out.id);
             if ((res = pthread_join(p_out.id, NULL)) < 0)
-                ERR("pthread_join" ERRNO "\r\n", EPMTS);
+                ERR("pthread_join" ERRNO "\n", EPMTS);
             LOG("pthread_join(%p, NULL); => %d\r\n", p_out.id, res);
 
             /* cancel reading thread */
@@ -333,7 +328,6 @@ int main(int argc, char **argv)
             LOG("pthread_cancel(%p); => %d\r\n", p_in.id, res);
 
             /* join it */
-            LOG("pthread_join(%p, NULL);...\r\n", p_in.id);
             res = pthread_join(p_in.id, NULL);
             LOG("pthread_join(%p, NULL); => %d\r\n", p_in.id, res);
 

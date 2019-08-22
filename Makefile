@@ -19,7 +19,7 @@ targets = test_ring slowtty
 
 test_ring_objs = test_ring.o ring.o
 
-slowtty_objs = slowtty.o delay.o
+slowtty_objs = slowtty.o delay.o ring.o gdc.o
 slowtty_libs = -lutil -lpthread
 
 objs = $(slowtty_objs)
