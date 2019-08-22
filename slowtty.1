@@ -1,0 +1,80 @@
+.Dd $Mdocdate$
+.Dt SLOWTTY 1
+.OS
+.Sh NAME
+.Nm slowtty
+.Nd a program to simulate baudrates of old ttys over networked
+lines.
+.Sh SYNOPSIS
+.Nm slowtty
+.Op Fl dltw
+.Op Fl b Ar bufsize
+.Op Cm command Op Ar arguments Cm ...
+.Sh DESCRIPTION
+The
+.Nm slowtty
+takes a pseudo-tty and simulates on it the behaviour of a slow
+tty line, by using the configured baudrate, and character frame
+length to calculate the character transmission time and adapt
+the output to it, so characters flow at a fixed pace as the
+serial line would do.
+.Pp
+While you are running the
+.Nm
+command, all the settings made with the
+.Cm stty(1)
+utility that result in changes in the baudrate or character size,
+parity or the like, will be taken into account by
+.Nm
+and will be obeyed to simulate changes in the line configuration.
+.Pp
+If you don't add any
+.Cm command
+to the parameter list, the
+.Nm
+utility just spawns a shell (as specified by the
+.Cm $SHELL
+environment variable.)  The shell can be made a login shell
+with the option
+.Cm -l
+(see below)
+.Bl -tag 
+.It Fl b
+Allows to set the internal buffer size used to read characters
+from the slave tty.  Normally this is adjusted dynamically so
+no more than one second characters get buffered on output.
+The idea is to allow for
+.Cm "^C"
+characters to be processed without having to print lots of
+buffered characters, while allowing for high speeds to allow to
+process the buffer in chunks to maintain the average stream flow.
+.It Fl d
+This flag makes the
+.Nm
+program verbose, outputting log lines to stderr about what
+it is doing.
+It is useful for debugging purposes.
+.It Fl "l"
+prependeds a
+.Cm -
+to the program name argument in the command to execute.
+This, when used with a shell command, has the effect of making
+the shell a login shell, so it will execute the login scripts
+and do user session initialization as if a normal login has been
+done.
+.It Fl t
+With this option,
+.Nm
+does not use
+.Cm tcsetattr(3)
+to set the master terminal attributes, neither it passes the
+settings on the master to the slave pty.
+.It Fl w
+Makes
+.Nm
+not transmit the \fIwindow size\fR attributes to the slave
+tty, so the program run is not aware of terminal window size
+changes.
+.El
+.Sh AUTHOR
+.An "Luis Colorado" Aq Mt luiscoloradourcola@gmail.com

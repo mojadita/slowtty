@@ -224,6 +224,7 @@ int main(int argc, char **argv)
             } else {
                 char *shellenv = "SHELL";
                 char *shell = getenv(shellenv);
+				char cmd[PATH_MAX];
                 if (shell) {
                     LOG("Got shell from environment variable SHELL\n");
                 } else {
@@ -233,8 +234,13 @@ int main(int argc, char **argv)
                     shell = u->pw_shell;
                     LOG("Got shell from /etc/passwd file\n");
                 } /* if */
-                LOG("execlp: %s\n", shell);
-                execlp(shell, shell, NULL);
+				snprintf(cmd, sizeof cmd, "%s%s",
+					flags & FLAG_LOGIN
+						? "-"
+						: "",
+					shell);
+                LOG("execlp: %s\n", cmd);
+                execlp(shell, cmd, NULL);
                 ERR("execlp: %s" ERRNO "\n", shell, EPMTS);
             } /* if */
             /* NOTREACHED */
