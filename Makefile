@@ -4,6 +4,11 @@
 # Copyright: (C) 2015 LUIS COLORADO.  This is open source copyrighted software.
 # Date: Tue Aug  2 16:00:52 EEST 2016
 
+# Uncomment the following line to compile this program on BSD
+# systems, or systems that have the forkpty() function prototype
+# defined there.
+# CFLAGS += -DHAS_LIBUTIL_H=1
+
 prefix	?= $(HOME)
 bindir	?= $(prefix)/bin
 mandir	?= $(prefix)/man

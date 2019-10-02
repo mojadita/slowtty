@@ -16,7 +16,6 @@
 #include <errno.h>
 #include <fcntl.h>
 #include <getopt.h>
-#include <libutil.h>
 #include <limits.h>
 #include <pthread.h>
 #include <pwd.h>
