@@ -41,19 +41,19 @@ int main(int argc, char **argv)
 	rb_init(&b);
 
 	b.rb_capa = random() % RB_BUFFER_SIZE + 1;
-	printf(F("b.rb_capa = %lu\n"), b.rb_capa);
+	printf(F("b.rb_capa = %zu\n"), b.rb_capa);
 
 
 	for (;;) {
 		if (b.rb_size < b.rb_capa) {
 			size_t to_read = random() % (b.rb_capa - b.rb_size) + 1;
-			printf(F("b.rb_size = %lu; to_read = %lu\n"),
+			printf(F("b.rb_size = %zu; to_read = %zu\n"),
 				b.rb_size, to_read);
 			if (to_read) {
 				ssize_t read_in = 0;
 				printf(F("rb_read(&b, to_read, 0)\n"));
 				read_in = rb_read(&b, to_read, 0);
-				printf(F("read_in = %lu\n"), read_in);
+				printf(F("read_in = %zu\n"), read_in);
 				if (read_in < 0) {
 					fprintf(stderr,
 						F("rb_read: ERROR %d: %s\n"),
@@ -67,13 +67,13 @@ int main(int argc, char **argv)
 		}
 		if (b.rb_size) {
 			size_t to_write = random() % (b.rb_size) + 1;
-			printf(F("to_write = %lu\n"), 
+			printf(F("to_write = %zu\n"), 
 				to_write);
 			if (to_write) {
 				ssize_t written_out = 0;
 				printf(F("rb_write(&b, to_write, 1)\n"));
 				written_out = rb_write(&b, to_write, 1);
-				printf(F("written_out = %lu\n"), written_out);
+				printf(F("written_out = %zu\n"), written_out);
 			}
 		}
 	}

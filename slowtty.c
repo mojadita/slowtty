@@ -93,7 +93,7 @@ void pass_data(struct pthread_info *pi)
         ssize_t to_fill = window - pi->b.rb_size;
 
         if (to_fill > 0) { /* if we can read */
-			LOG("%s: rb_read(&pi->b, to_fill=%lu, pi->from_fd=%d)\r\n",
+			LOG("%s: rb_read(&pi->b, to_fill=%zu, pi->from_fd=%d)\r\n",
 				pi->name, to_fill, pi->from_fd);
 			ssize_t res = rb_read(&pi->b, to_fill, pi->from_fd);
             if (res < 0) {
@@ -104,20 +104,20 @@ void pass_data(struct pthread_info *pi)
 				LOG("%s: read: EOF on input\n", pi->name);
 				break;
 			}
-			LOG("%s: rb_read ==> %ld bytes\r\n", pi->name, res);
+			LOG("%s: rb_read ==> %zd bytes\r\n", pi->name, res);
         }
 
         size_t to_write = window <= pi->b.rb_size
                         ? window
                         : pi->b.rb_size;
         if (to_write > 0) {
-			LOG("%s: rb_write(&pi->b, to_write=%lu, pi->to_fd=%d)\r\n",
+			LOG("%s: rb_write(&pi->b, to_write=%zu, pi->to_fd=%d)\r\n",
 				pi->name, to_write, pi->to_fd);
 			ssize_t res = rb_write(&pi->b, to_write, pi->to_fd);
             if (res < 0) {
                 ERR("%s: write" ERRNO "\n", pi->name, EPMTS);
             }
-			LOG("%s: rb_write ==> %ld bytes\r\n", pi->name, res);
+			LOG("%s: rb_write ==> %zd bytes\r\n", pi->name, res);
         }
     } /* for */
 } /* pass_data */
