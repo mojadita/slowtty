@@ -16,7 +16,7 @@
 # defined in pty.h.  For example, this is required in Linux to
 # eliminate a compiler warning.
 #
-# CFLAGS += -DHAS_PTY_Y=1
+# CFLAGS += -DHAS_PTY_H=1
 
 prefix	?= $(HOME)
 bindir	?= $(prefix)/bin
