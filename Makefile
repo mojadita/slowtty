@@ -54,6 +54,7 @@ install: $(targets)
 
 deinstall:
 	$(RM) $(bindir)/slowtty
+	$(RM) $(man1dir)/slowtty.1
 
 slowtty: $(slowtty_objs)
 	$(CC) $(CFLAGS) $(LDFLAGS) -o $@ $($@_objs) $($@_libs)
