@@ -6,8 +6,17 @@
 
 # Uncomment the following line to compile this program on BSD
 # systems, or systems that have the forkpty() function prototype
-# defined there.
+# defined there.  For example, this is required in FreeBSD to 
+# eliminate a compiler warning.
+#
 # CFLAGS += -DHAS_LIBUTIL_H=1
+
+# Uncomment the following line to compile this program on Linux
+# systems, or systems that have the forkpty() function prototype
+# defined in pty.h.  For example, this is required in Linux to
+# eliminate a compiler warning.
+#
+# CFLAGS += -DHAS_PTY_Y=1
 
 prefix	?= $(HOME)
 bindir	?= $(prefix)/bin
