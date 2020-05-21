@@ -55,6 +55,7 @@ size_t bufsz;
 static struct pthread_info*
 init_pthread_info(
         struct pthread_info    *pi,
+		struct pthread_info	   *other,
         int                     from_fd,
         int                     to_fd,
         char                   *name)
@@ -62,6 +63,7 @@ init_pthread_info(
     pi->from_fd     = from_fd;
     pi->to_fd       = to_fd;
     pi->name        = name;
+	pi->other		= other;
 	rb_init(&pi->b);
     return pi;
 } /* init_pthread_info */
@@ -92,7 +94,18 @@ void pass_data(struct pthread_info *pi)
         ssize_t to_fill = window - pi->b.rb_size;
 
         if (to_fill > 0) { /* if we can read */
-			LOG("%s: rb_read(&pi->b, to_fill=%zu, pi->from_fd=%d)\r\n",
+			if (pi->flags & PIFLG_STOPPED && to_fill > pi->b.rb_capa / 2) {
+				/* THIS WRITE WILL GO INTERSPERSED BETWEEN THE CALLS
+				OF THE OTHER THREAD, AS THE INODE IS LOCKED BY THE
+				SYSTEM, NO TWO THREADS CAN EXECUTE IN PARALLEL TWO
+				WRITES TO THE SAME FILE AT THE SAME TIME. */
+
+				write(pi->other->to_fd, "\021", 1); /* XON */
+				LOG("%s: automatic XON on empty buffer\n",
+						pi->name);
+				pi->flags &= ~PIFLG_STOPPED;
+			}
+			LOG("%s: rb_read(&pi->b, to_fill=%lu, pi->from_fd=%d)\r\n",
 				pi->name, to_fill, pi->from_fd);
 			ssize_t res = rb_read(&pi->b, to_fill, pi->from_fd);
             if (res < 0) {
@@ -103,8 +116,18 @@ void pass_data(struct pthread_info *pi)
 				LOG("%s: read: EOF on input\n", pi->name);
 				break;
 			}
-			LOG("%s: rb_read ==> %zd bytes\r\n", pi->name, res);
-        }
+			LOG("%s: rb_read ==> %ld bytes\r\n", pi->name, res);
+        } else if (!(pi->flags & PIFLG_STOPPED)) {
+			/* THIS WRITE WILL GO INTERSPERSED BETWEEN THE CALLS
+			OF THE OTHER THREAD, AS THE INODE IS LOCKED BY THE
+			SYSTEM, NO TWO THREADS CAN EXECUTE IN PARALLEL TWO
+			WRITES TO THE SAME FILE AT THE SAME TIME. */
+
+			write(pi->other->to_fd, "\023", 1); /* XOFF */
+			LOG("%s: automatic XOFF on empty buffer\n",
+					pi->name);
+			pi->flags |= PIFLG_STOPPED;
+		}
 
         size_t to_write = window <= pi->b.rb_size
                         ? window
@@ -285,6 +308,7 @@ int main(int argc, char **argv)
                     pthread_body_reader,
                     init_pthread_info(
                         &p_in,
+						&p_out,
                         0, ptym,
                         "READER"));
             LOG("pthread_create: id=%p, name=%s ==> res=%d\r\n", 
@@ -304,6 +328,7 @@ int main(int argc, char **argv)
                     pthread_body_writer,
                     init_pthread_info(
                         &p_out,
+						&p_in,
                         ptym, 1, 
                         "WRITER"));
             LOG("pthread_create: id=%p, name=%s ==> res=%d\r\n", 
