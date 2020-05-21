@@ -59,26 +59,36 @@ extern size_t bufsz;
 extern int ptym, ptys;
 extern struct termios saved_tty;
 
+#define PIFLG_STOPPED	(1 << 0)
+
 struct pthread_info {
-    pthread_t       id;		/* id of pthread */
+    pthread_t       id;			/* id of pthread */
 
 	/* FILE DESCRIPTORS */
-    int             from_fd,/* descriptor we must read from */
-                    to_fd;  /* descriptor we must write to */
+    int             from_fd,	/* descriptor we must read from */
+                    to_fd;  	/* descriptor we must write to */
 
+	int				flags;  	/* flags of the communication channel */
+
+	/* RING BUFFER */
     char           *name;
 	struct ring_buffer
-					b;		/* ring buffer */
+					b;			/* ring buffer */
 
+	/* CHANNEL SAVED CONFIG */
     speed_t			svd_bauds;	/* saved baudrate */
     tcflag_t		svd_cflag;	/* saved cflag */
 
+	/* TO CALCULATE TIMING */
     unsigned long	num;		/* numerator of integer chars to pass */
     unsigned long	den;		/* denominator of integer chars to pass */
     unsigned long	acc;		/* fractional part of char to pass. */
     unsigned long   ctw;		/* whole chars to write */
 
     struct timespec tic;
+
+	/* THE OTHER THREAD INFO (IN OPPOSITE DIRECTION) */
+	struct pthread_info *other; /* the info of the another thread */
 
 }; /* struct pthread_info */
 
