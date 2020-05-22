@@ -11,7 +11,7 @@
 /* We consider the time divided in tics of 0.04s (25 frames/sec) and, to
  * be precise, we stick on 0.04s tic marks, so that value is, indeed, fixed
  * as a constant (not configurable).
- * 
+ *
  * Based on the baudrate (we check if baudrate, char size, stopbits or parity
  * has changed and only do this calculation in case of a change.) we then
  * calculate the amount of time a single character needs to be sent over the
@@ -48,18 +48,18 @@ static unsigned long getthebr(struct termios *t)
 {
 
 #define B(_n) case B##_n: do {                \
-		/*LOG("setting is %d baudios\r\n", _n);*/ \
-		return (_n);                          \
-	} while(0)
+        /*LOG("setting is %d baudios\r\n", _n);*/ \
+        return (_n);                          \
+    } while(0)
 
-	speed_t	s = cfgetospeed(t);
+    speed_t s = cfgetospeed(t);
     switch(s) {
         B(50); B(75); B(110);
         B(134); B(150); B(200); B(300);
         B(600); B(1200); B(1800); B(2400);
         B(4800); B(9600); B(19200); B(38400);
         B(57600); B(115200); B(230400);
-		default: return B9600 == 9600 ? s : 0;
+        default: return B9600 == 9600 ? s : 0;
     } /* switch */
 #undef B
 } /* getthebr */
@@ -77,7 +77,7 @@ unsigned long delay(struct pthread_info *p)
         ERR("tcgetattr" ERRNO "\r\n", EPMTS);
     }
 
-	speed_t new_baudrate = getthebr(&saved_tty);
+    speed_t new_baudrate = getthebr(&saved_tty);
     tcflag_t  new_cflag = saved_tty.c_cflag;
 
     if (   p->svd_bauds != new_baudrate
@@ -95,40 +95,40 @@ unsigned long delay(struct pthread_info *p)
 
         p->num = new_baudrate;
         p->den = bits_per_char * TICS_PER_SEC;  /* ticks/sec. */
-		long common_div = gdc(p->num, p->den);
-		if (common_div > 1) {
-			p->num /= common_div;
-			p->den /= common_div;
-		}
+        long common_div = gdc(p->num, p->den);
+        if (common_div > 1) {
+            p->num /= common_div;
+            p->den /= common_div;
+        }
         p->acc = p->den / 2; /* round to half a tic */
 
         LOG("num==%ld, den=%ld, acc=%ld\r\n",
                 p->num, p->den, p->acc);
-		p->svd_bauds = new_baudrate;
-		p->svd_cflag = new_cflag;
+        p->svd_bauds = new_baudrate;
+        p->svd_cflag = new_cflag;
     }
 
-	/* now, update */
+    /* now, update */
     p->acc += p->num % p->den;
     p->ctw  = p->num / p->den;
     if (p->acc >= p->den) { /* carry */
         p->ctw++;
         p->acc -= p->den;
     }
-	LOG("p->acc==%ld, p->den==%ld, p->ctw==%ld\r\n",
-		p->acc, p->den, p->ctw);
+    LOG("p->acc==%ld, p->den==%ld, p->ctw==%ld\r\n",
+        p->acc, p->den, p->ctw);
 
-	/* add the tic delay */
+    /* add the tic delay */
     p->tic.tv_nsec += TIC_DELAY;
     p->tic.tv_nsec -= p->tic.tv_nsec % TIC_DELAY;
     if (p->tic.tv_nsec >= 1000000000) { /* carry */
         p->tic.tv_sec++;
         p->tic.tv_nsec -= 1000000000;
     }
-	res = clock_nanosleep(CLOCK_REALTIME, TIMER_ABSTIME, &p->tic, NULL);
-	if (res) {
-		ERR("clock_gettime" ERRNO "\r\n", EPMTS);
-	}
+    res = clock_nanosleep(CLOCK_REALTIME, TIMER_ABSTIME, &p->tic, NULL);
+    if (res) {
+        ERR("clock_gettime" ERRNO "\r\n", EPMTS);
+    }
 
     return p->ctw;
 } /* delay */

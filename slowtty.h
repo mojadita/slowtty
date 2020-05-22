@@ -15,10 +15,10 @@
 #endif
 
 #ifndef TIC_DELAY  /* so we can change the value on the Makefile */
-#define TIC_DELAY		(40000000) /* nsecs.  = 0.04s. */
+#define TIC_DELAY       (40000000) /* nsecs.  = 0.04s. */
 #endif
 #ifndef TICS_PER_SEC
-#define TICS_PER_SEC	(25)
+#define TICS_PER_SEC    (25)
 #endif
 
 #define F(X) "%s:%d: %s: " X, __FILE__, __LINE__, __func__
@@ -52,7 +52,7 @@
 #define FLAG_VERBOSE    (1 << 0)
 #define FLAG_DOWINCH    (1 << 1)
 #define FLAG_NOTCSET    (1 << 2)
-#define FLAG_LOGIN		(1 << 3)
+#define FLAG_LOGIN      (1 << 3)
 
 extern volatile int flags;
 extern size_t bufsz;
@@ -60,23 +60,23 @@ extern int ptym, ptys;
 extern struct termios saved_tty;
 
 struct pthread_info {
-    pthread_t       id;		/* id of pthread */
+    pthread_t       id;     /* id of pthread */
 
-	/* FILE DESCRIPTORS */
+    /* FILE DESCRIPTORS */
     int             from_fd,/* descriptor we must read from */
                     to_fd;  /* descriptor we must write to */
 
     char           *name;
-	struct ring_buffer
-					b;		/* ring buffer */
+    struct ring_buffer
+                    b;      /* ring buffer */
 
-    speed_t			svd_bauds;	/* saved baudrate */
-    tcflag_t		svd_cflag;	/* saved cflag */
+    speed_t         svd_bauds;  /* saved baudrate */
+    tcflag_t        svd_cflag;  /* saved cflag */
 
-    unsigned long	num;		/* numerator of integer chars to pass */
-    unsigned long	den;		/* denominator of integer chars to pass */
-    unsigned long	acc;		/* fractional part of char to pass. */
-    unsigned long   ctw;		/* whole chars to write */
+    unsigned long   num;        /* numerator of integer chars to pass */
+    unsigned long   den;        /* denominator of integer chars to pass */
+    unsigned long   acc;        /* fractional part of char to pass. */
+    unsigned long   ctw;        /* whole chars to write */
 
     struct timespec tic;
 

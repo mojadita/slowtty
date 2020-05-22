@@ -62,7 +62,7 @@ init_pthread_info(
     pi->from_fd     = from_fd;
     pi->to_fd       = to_fd;
     pi->name        = name;
-	rb_init(&pi->b);
+    rb_init(&pi->b);
     return pi;
 } /* init_pthread_info */
 
@@ -92,31 +92,31 @@ void pass_data(struct pthread_info *pi)
         ssize_t to_fill = window - pi->b.rb_size;
 
         if (to_fill > 0) { /* if we can read */
-			LOG("%s: rb_read(&pi->b, to_fill=%zu, pi->from_fd=%d)\r\n",
-				pi->name, to_fill, pi->from_fd);
-			ssize_t res = rb_read(&pi->b, to_fill, pi->from_fd);
+            LOG("%s: rb_read(&pi->b, to_fill=%zu, pi->from_fd=%d)\r\n",
+                pi->name, to_fill, pi->from_fd);
+            ssize_t res = rb_read(&pi->b, to_fill, pi->from_fd);
             if (res < 0) {
                 ERR("%s: read" ERRNO "\n", pi->name, EPMTS);
             }
-			clock_gettime(CLOCK_REALTIME, &pi->tic);
-			if (res == 0) {
-				LOG("%s: read: EOF on input\n", pi->name);
-				break;
-			}
-			LOG("%s: rb_read ==> %zd bytes\r\n", pi->name, res);
+            clock_gettime(CLOCK_REALTIME, &pi->tic);
+            if (res == 0) {
+                LOG("%s: read: EOF on input\n", pi->name);
+                break;
+            }
+            LOG("%s: rb_read ==> %zd bytes\r\n", pi->name, res);
         }
 
         size_t to_write = window <= pi->b.rb_size
                         ? window
                         : pi->b.rb_size;
         if (to_write > 0) {
-			LOG("%s: rb_write(&pi->b, to_write=%zu, pi->to_fd=%d)\r\n",
-				pi->name, to_write, pi->to_fd);
-			ssize_t res = rb_write(&pi->b, to_write, pi->to_fd);
+            LOG("%s: rb_write(&pi->b, to_write=%zu, pi->to_fd=%d)\r\n",
+                pi->name, to_write, pi->to_fd);
+            ssize_t res = rb_write(&pi->b, to_write, pi->to_fd);
             if (res < 0) {
                 ERR("%s: write" ERRNO "\n", pi->name, EPMTS);
             }
-			LOG("%s: rb_write ==> %zd bytes\r\n", pi->name, res);
+            LOG("%s: rb_write ==> %zd bytes\r\n", pi->name, res);
         }
     } /* for */
 } /* pass_data */
@@ -167,15 +167,15 @@ int main(int argc, char **argv)
     while ((opt = getopt(argc, argv, "dltws:")) != EOF) {
         switch (opt) {
         case 'd': flags |=  FLAG_VERBOSE; break;
-		case 'l': flags |=  FLAG_LOGIN;   break;
+        case 'l': flags |=  FLAG_LOGIN;   break;
         case 't': flags |=  FLAG_NOTCSET; break;
         case 'w': flags &= ~FLAG_DOWINCH; break;
-		case 's': bufsz = atoi(optarg);
-			if (bufsz <= 0 || bufsz >= BUFSIZ) {
-				WARN("buffer size set to default due to invalid value (%s) passed\n",
-					optarg);
-				bufsz = BUFSIZ;
-			} break;
+        case 's': bufsz = atoi(optarg);
+            if (bufsz <= 0 || bufsz >= BUFSIZ) {
+                WARN("buffer size set to default due to invalid value (%s) passed\n",
+                    optarg);
+                bufsz = BUFSIZ;
+            } break;
         } /* switch */
     } /* while */
 
@@ -205,10 +205,10 @@ int main(int argc, char **argv)
     switch(child_pid) {
     case -1:
         ERR("forkpty" ERRNO "\n", EPMTS);
-		/* NOTREACHED */
+        /* NOTREACHED */
 
     case 0: {
-			/* child process */
+            /* child process */
             int res;
 
             if (argc) {
@@ -223,7 +223,7 @@ int main(int argc, char **argv)
             } else {
                 char *shellenv = "SHELL";
                 char *shell = getenv(shellenv);
-				char cmd[PATH_MAX];
+                char cmd[PATH_MAX];
                 if (shell) {
                     LOG("Got shell from environment variable SHELL\n");
                 } else {
@@ -233,11 +233,11 @@ int main(int argc, char **argv)
                     shell = u->pw_shell;
                     LOG("Got shell from /etc/passwd file\n");
                 } /* if */
-				snprintf(cmd, sizeof cmd, "%s%s",
-					flags & FLAG_LOGIN
-						? "-"
-						: "",
-					shell);
+                snprintf(cmd, sizeof cmd, "%s%s",
+                    flags & FLAG_LOGIN
+                        ? "-"
+                        : "",
+                    shell);
                 LOG("execlp: %s\n", cmd);
                 execlp(shell, cmd, NULL);
                 ERR("execlp: %s" ERRNO "\n", shell, EPMTS);
@@ -247,7 +247,7 @@ int main(int argc, char **argv)
 
     default: { /* parent process */
             struct pthread_info p_in, p_out;
-			struct timespec ts_now;
+            struct timespec ts_now;
             int res, exit_code = 0;
             struct sigaction sa;
             struct termios stty_raw = saved_tty;
@@ -260,10 +260,10 @@ int main(int argc, char **argv)
              * to \n, as we have switched to raw mode (in the parent
              * process)  So we first do a fflush(3) to dump all
              * data. */
-            fflush(NULL); 
+            fflush(NULL);
             cfmakeraw(&stty_raw);
-			stty_raw.c_cc[VMIN] = 1;
-			stty_raw.c_cc[VTIME] = 0;
+            stty_raw.c_cc[VMIN] = 1;
+            stty_raw.c_cc[VTIME] = 0;
             atexit(atexit_handler); /* to restore tty settings */
             res = tcsetattr(0, TCSAFLUSH, &stty_raw);
             if (res < 0) {
@@ -278,7 +278,7 @@ int main(int argc, char **argv)
             }
 
             /* create the subthreads to process info */
-			clock_gettime(CLOCK_REALTIME, &p_in.tic);
+            clock_gettime(CLOCK_REALTIME, &p_in.tic);
             res = pthread_create(
                     &p_in.id,
                     NULL,
@@ -287,26 +287,26 @@ int main(int argc, char **argv)
                         &p_in,
                         0, ptym,
                         "READER"));
-            LOG("pthread_create: id=%p, name=%s ==> res=%d\r\n", 
+            LOG("pthread_create: id=%p, name=%s ==> res=%d\r\n",
                     p_in.id, p_in.name, res);
             if (res < 0)
                 ERR("pthread_create" ERRNO "\r\n", EPMTS);
 
-			p_out.tic = p_in.tic;
-			p_out.tic.tv_nsec += TIC_DELAY / 2;
-			if (p_out.tic.tv_nsec >= 1000000000) {
-				p_out.tic.tv_sec++;
-				p_out.tic.tv_nsec -= 1000000000;
-			}
+            p_out.tic = p_in.tic;
+            p_out.tic.tv_nsec += TIC_DELAY / 2;
+            if (p_out.tic.tv_nsec >= 1000000000) {
+                p_out.tic.tv_sec++;
+                p_out.tic.tv_nsec -= 1000000000;
+            }
             res = pthread_create(
                     &p_out.id,
                     NULL,
                     pthread_body_writer,
                     init_pthread_info(
                         &p_out,
-                        ptym, 1, 
+                        ptym, 1,
                         "WRITER"));
-            LOG("pthread_create: id=%p, name=%s ==> res=%d\r\n", 
+            LOG("pthread_create: id=%p, name=%s ==> res=%d\r\n",
                     p_out.id, p_out.name, res);
             if (res < 0)
                 ERR("pthread_create" ERRNO "\r\n", EPMTS);
@@ -315,13 +315,13 @@ int main(int argc, char **argv)
             wait(&exit_code);
             LOG("wait(&exit_code == %d);\r\n", exit_code);
 
-			/* we cannot wait for the slave device to close, as
-			 * something (e.g. a daemon) can leave it open for
-			 * some strange reason. So, reconfigure the output
-			 * device with the master configuration and close
-			 * the master. That should make the writer thread
-			 * to fail, and we ignore that. Just join the
-			 * writer thread. */
+            /* we cannot wait for the slave device to close, as
+             * something (e.g. a daemon) can leave it open for
+             * some strange reason. So, reconfigure the output
+             * device with the master configuration and close
+             * the master. That should make the writer thread
+             * to fail, and we ignore that. Just join the
+             * writer thread. */
 
             LOG("pthread_join(%p, NULL);...\r\n", p_out.id);
             if ((res = pthread_join(p_out.id, NULL)) < 0)

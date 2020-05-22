@@ -9,9 +9,9 @@
 
 unsigned gdc(unsigned a, unsigned b)
 {
-	while (b != 0) {
-		unsigned c = a % b;
-		a = b; b = c;
-	}
-	return a;
+    while (b != 0) {
+        unsigned c = a % b;
+        a = b; b = c;
+    }
+    return a;
 } /* gdc */
