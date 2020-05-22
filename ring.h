@@ -10,7 +10,7 @@
 #include <unistd.h>
 #include <sys/uio.h>
 
-#define RB_BUFFER_SIZE      (4096)
+#define RB_BUFFER_SIZE      (1024)
 
 struct ring_buffer {
     char           *rb_head,

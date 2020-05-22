@@ -50,7 +50,6 @@ struct termios saved_tty;
 struct winsize saved_window_size;
 
 volatile int flags = FLAG_DOWINCH;
-size_t bufsz;
 
 static struct pthread_info*
 init_pthread_info(
@@ -85,61 +84,78 @@ void pass_data(struct pthread_info *pi)
 {
     for (;;) {
 
+        /* window is the number of characters we can write
+         * in this loop pass. */
         int window = delay(pi); /* do the delay. */
 
         LOG("%s: window = %d\r\n", pi->name, window);
 
         if (window == 0) continue; /* nothing to do */
 
-        ssize_t to_fill = window - pi->b.rb_size;
+        ssize_t to_fill = pi->b.rb_capa - pi->b.rb_size;
 
         if (to_fill > 0) { /* if we can read */
-            if (pi->flags & PIFLG_STOPPED && to_fill > pi->b.rb_capa / 2) {
+
+            /* check if we have to activate the channel */
+            if (pi->flags & PIFLG_STOPPED && pi->b.rb_size < window) {
+
+                /* THIS WRITE WILL GO INTERSPERSED BETWEEN THE CALLS
+                 * OF THE OTHER THREAD, AS THE INODE IS LOCKED BY THE
+                 * SYSTEM, NO TWO THREADS CAN EXECUTE IN PARALLEL TWO
+                 * WRITES TO THE SAME FILE AT THE SAME TIME. */
+
+                write(pi->other->to_fd, "\021", 1); /* XON */
+
+                LOG("%s: automatic XON on empty buffer\n",
+                        pi->name);
+                pi->flags &= ~PIFLG_STOPPED;
+            }
+
+            /* read as much as possible */
+            ssize_t res = rb_read(&pi->b, to_fill, pi->from_fd);
+            if (res < 0) {
+                ERR("%s: read" ERRNO "\n", pi->name, EPMTS);
+                break;
+            } else if (res == 0) {
+                LOG("%s: read: EOF on input\n", pi->name);
+                break;
+            }
+
+            /* good read */
+            LOG("%s: rb_read(&pi->b, to_fill=%lu, "
+                "pi->from_fd=%d) => %zd\r\n",
+                pi->name, to_fill, pi->from_fd, res);
+
+            clock_gettime(CLOCK_REALTIME, &pi->tic);
+
+            if (!(pi->flags & PIFLG_STOPPED)
+                && pi->b.rb_capa - pi->b.rb_size < window)
+            {
                 /* THIS WRITE WILL GO INTERSPERSED BETWEEN THE CALLS
                 OF THE OTHER THREAD, AS THE INODE IS LOCKED BY THE
                 SYSTEM, NO TWO THREADS CAN EXECUTE IN PARALLEL TWO
                 WRITES TO THE SAME FILE AT THE SAME TIME. */
 
-                write(pi->other->to_fd, "\021", 1); /* XON */
-                LOG("%s: automatic XON on empty buffer\n",
+                write(pi->other->to_fd, "\023", 1); /* XOFF */
+                LOG("%s: automatic XOFF on empty buffer\n",
                         pi->name);
-                pi->flags &= ~PIFLG_STOPPED;
+                pi->flags |= PIFLG_STOPPED;
             }
-            LOG("%s: rb_read(&pi->b, to_fill=%lu, pi->from_fd=%d)\r\n",
-                pi->name, to_fill, pi->from_fd);
-            ssize_t res = rb_read(&pi->b, to_fill, pi->from_fd);
-            if (res < 0) {
-                ERR("%s: read" ERRNO "\n", pi->name, EPMTS);
-            }
-            clock_gettime(CLOCK_REALTIME, &pi->tic);
-            if (res == 0) {
-                LOG("%s: read: EOF on input\n", pi->name);
-                break;
-            }
-            LOG("%s: rb_read ==> %ld bytes\r\n", pi->name, res);
-        } else if (!(pi->flags & PIFLG_STOPPED)) {
-            /* THIS WRITE WILL GO INTERSPERSED BETWEEN THE CALLS
-            OF THE OTHER THREAD, AS THE INODE IS LOCKED BY THE
-            SYSTEM, NO TWO THREADS CAN EXECUTE IN PARALLEL TWO
-            WRITES TO THE SAME FILE AT THE SAME TIME. */
-
-            write(pi->other->to_fd, "\023", 1); /* XOFF */
-            LOG("%s: automatic XOFF on empty buffer\n",
-                    pi->name);
-            pi->flags |= PIFLG_STOPPED;
-        }
+        } /* if (to_fill > 0) */
 
         size_t to_write = window <= pi->b.rb_size
                         ? window
                         : pi->b.rb_size;
+
         if (to_write > 0) {
-            LOG("%s: rb_write(&pi->b, to_write=%zu, pi->to_fd=%d)\r\n",
-                pi->name, to_write, pi->to_fd);
             ssize_t res = rb_write(&pi->b, to_write, pi->to_fd);
             if (res < 0) {
                 ERR("%s: write" ERRNO "\n", pi->name, EPMTS);
+                break;
             }
-            LOG("%s: rb_write ==> %zd bytes\r\n", pi->name, res);
+            LOG("%s: rb_write(&pi->b, to_write=%lu, "
+                "pi->to_fd=%d) => %zd\r\n",
+                pi->name, to_write, pi->to_fd, res);
         }
     } /* for */
 } /* pass_data */
@@ -186,6 +202,7 @@ int main(int argc, char **argv)
     int opt, res;
     pid_t child_pid;
     char pty_name[PATH_MAX];
+    size_t bufsz;
 
     while ((opt = getopt(argc, argv, "dltws:")) != EOF) {
         switch (opt) {
@@ -225,145 +242,151 @@ int main(int argc, char **argv)
     fflush(NULL);
 
     child_pid = forkpty(&ptym, pty_name, &saved_tty, &saved_window_size);
-    switch(child_pid) {
-    case -1:
+    if (child_pid < 0) {
         ERR("forkpty" ERRNO "\n", EPMTS);
         /* NOTREACHED */
+    } else if (child_pid == 0) {
 
-    case 0: {
-            /* child process */
-            int res;
+        /* child process */
+        int res;
 
-            if (argc) {
-                int i;
-                LOG("execvp:");
-                for (i = 0; i < argc; i++) {
-                    ADD("[%s]", argv[i]);
-                }
-                ADD("\n");
-                execvp(argv[0], argv);
-                ERR("execvp: %s" ERRNO "\n", argv[0], EPMTS);
-            } else {
-                char *shellenv = "SHELL";
-                char *shell = getenv(shellenv);
-                char cmd[PATH_MAX];
-                if (shell) {
-                    LOG("Got shell from environment variable SHELL\n");
-                } else {
-                    struct passwd *u = getpwnam(getlogin());
-                    if (!u)
-                        ERR("getpwnam failed\n");
-                    shell = u->pw_shell;
-                    LOG("Got shell from /etc/passwd file\n");
-                } /* if */
-                snprintf(cmd, sizeof cmd, "%s%s",
-                    flags & FLAG_LOGIN
-                        ? "-"
-                        : "",
-                    shell);
-                LOG("execlp: %s\n", cmd);
-                execlp(shell, cmd, NULL);
-                ERR("execlp: %s" ERRNO "\n", shell, EPMTS);
-            } /* if */
+        if (argc) {
+            int i;
+            LOG("execvp:");
+            for (i = 0; i < argc; i++) {
+                ADD(" [%s]", argv[i]);
+            }
+            ADD("\n");
+
+            execvp(argv[0], argv);
+
+            ERR("execvp: %s" ERRNO "\n", argv[0], EPMTS);
             /* NOTREACHED */
-        } /* case */
-
-    default: { /* parent process */
-            struct pthread_info p_in, p_out;
-            struct timespec ts_now;
-            int res, exit_code = 0;
-            struct sigaction sa;
-            struct termios stty_raw = saved_tty;
-
-            LOG("forkpty: child_pid == %d, ptym=%d, "
-                    "pty_name=[%s]\n",
-                    child_pid, ptym, pty_name);
-
-            /* from this point on, we have to use \r in addition
-             * to \n, as we have switched to raw mode (in the parent
-             * process)  So we first do a fflush(3) to dump all
-             * data. */
-            fflush(NULL);
-            cfmakeraw(&stty_raw);
-            stty_raw.c_cc[VMIN] = 1;
-            stty_raw.c_cc[VTIME] = 0;
-            atexit(atexit_handler); /* to restore tty settings */
-            res = tcsetattr(0, TCSAFLUSH, &stty_raw);
-            if (res < 0) {
-                ERR("tcsetattr(0, ...)" ERRNO "\n", EPMTS);
+        } else {
+            char *shellenv = "SHELL";
+            char *shell = getenv(shellenv);
+            char cmd[PATH_MAX];
+            if (shell) {
+                LOG("Got shell from environment variable SHELL\n");
+            } else {
+                struct passwd *u = getpwnam(getlogin());
+                if (!u) {
+                    ERR("getpwnam failed\n");
+                    /* NOTREACHED */
+                }
+                shell = u->pw_shell;
+                LOG("Got shell from /etc/passwd file\n");
             } /* if */
+            snprintf(cmd, sizeof cmd, "%s%s",
+                flags & FLAG_LOGIN
+                    ? "-"
+                    : "",
+                shell);
+            LOG("execlp: %s\n", cmd);
+            execlp(shell, cmd, NULL);
+            ERR("execlp: %s" ERRNO "\n", shell, EPMTS);
+            /* NOTREACHED */
+        } /* if */
+        /* NOTREACHED */
+    } else { /* PARENT */
 
-            if (flags & FLAG_DOWINCH) {
-                LOG("installing signal handler\r\n");
-                memset(&sa, 0, sizeof sa);
-                sa.sa_handler = pass_winsz;
-                sigaction(SIGWINCH, &sa, NULL);
-            }
+        struct pthread_info p_in, p_out;
+        struct timespec ts_now;
+        int res, exit_code = 0;
+        struct sigaction sa;
+        struct termios stty_raw = saved_tty;
 
-            /* create the subthreads to process info */
-            clock_gettime(CLOCK_REALTIME, &p_in.tic);
-            res = pthread_create(
-                    &p_in.id,
-                    NULL,
-                    pthread_body_reader,
-                    init_pthread_info(
-                        &p_in,
-                        &p_out,
-                        0, ptym,
-                        "READER"));
-            LOG("pthread_create: id=%p, name=%s ==> res=%d\r\n",
-                    p_in.id, p_in.name, res);
-            if (res < 0)
-                ERR("pthread_create" ERRNO "\r\n", EPMTS);
+        LOG("forkpty: child_pid == %d, ptym=%d, "
+                "pty_name=[%s]\n",
+                child_pid, ptym, pty_name);
 
-            p_out.tic = p_in.tic;
-            p_out.tic.tv_nsec += TIC_DELAY / 2;
-            if (p_out.tic.tv_nsec >= 1000000000) {
-                p_out.tic.tv_sec++;
-                p_out.tic.tv_nsec -= 1000000000;
-            }
-            res = pthread_create(
-                    &p_out.id,
-                    NULL,
-                    pthread_body_writer,
-                    init_pthread_info(
-                        &p_out,
-                        &p_in,
-                        ptym, 1,
-                        "WRITER"));
-            LOG("pthread_create: id=%p, name=%s ==> res=%d\r\n",
-                    p_out.id, p_out.name, res);
-            if (res < 0)
-                ERR("pthread_create" ERRNO "\r\n", EPMTS);
+        /* from this point on, we have to use \r in addition
+         * to \n, as we have switched to raw mode (in the parent
+         * process)  So we first do a fflush(3) to dump all
+         * data. */
+        fflush(NULL);
+        cfmakeraw(&stty_raw);
+        stty_raw.c_cc[VMIN] = 1;
+        stty_raw.c_cc[VTIME] = 0;
+        /* RESTORE TTY SETTINGS AT END */
+        atexit(atexit_handler);
+        res = tcsetattr(0, TCSAFLUSH, &stty_raw);
+        if (res < 0) {
+            ERR("tcsetattr(0, ...)" ERRNO "\n", EPMTS);
+        } /* if */
 
-            /* wait for subprocess to terminate */
-            wait(&exit_code);
-            LOG("wait(&exit_code == %d);\r\n", exit_code);
+        if (flags & FLAG_DOWINCH) {
+            /* INSTALL SIGNAL HANDLER FOR SIGWINCH */
+            LOG("installing signal handler\r\n");
+            memset(&sa, 0, sizeof sa);
+            sa.sa_handler = pass_winsz;
+            sigaction(SIGWINCH, &sa, NULL);
+        }
 
-            /* we cannot wait for the slave device to close, as
-             * something (e.g. a daemon) can leave it open for
-             * some strange reason. So, reconfigure the output
-             * device with the master configuration and close
-             * the master. That should make the writer thread
-             * to fail, and we ignore that. Just join the
-             * writer thread. */
+        /* create the subthreads to process info */
+        clock_gettime(CLOCK_REALTIME, &p_in.tic);
+        res = pthread_create(
+                &p_in.id,
+                NULL,
+                pthread_body_reader,
+                init_pthread_info(
+                    &p_in,
+                    &p_out,
+                    0, ptym,
+                    "READER"));
+        if (res < 0) {
+            ERR("pthread_create" ERRNO "\r\n", EPMTS);
+        }
+        LOG("pthread_create: id=%p, name=%s ==> res=%d\r\n",
+                p_in.id, p_in.name, res);
 
-            LOG("pthread_join(%p, NULL);...\r\n", p_out.id);
-            if ((res = pthread_join(p_out.id, NULL)) < 0)
-                ERR("pthread_join" ERRNO "\n", EPMTS);
-            LOG("pthread_join(%p, NULL); => %d\r\n", p_out.id, res);
+        p_out.tic = p_in.tic;
+        p_out.tic.tv_nsec += TIC_DELAY / 2;
+        if (p_out.tic.tv_nsec >= 1000000000) {
+            p_out.tic.tv_sec++;
+            p_out.tic.tv_nsec -= 1000000000;
+        }
+        res = pthread_create(
+                &p_out.id,
+                NULL,
+                pthread_body_writer,
+                init_pthread_info(
+                    &p_out,
+                    &p_in,
+                    ptym, 1,
+                    "WRITER"));
+        if (res < 0) {
+            ERR("pthread_create" ERRNO "\r\n", EPMTS);
+        }
+        LOG("pthread_create: id=%p, name=%s ==> res=%d\r\n",
+                p_out.id, p_out.name, res);
 
-            /* cancel reading thread */
-            res = pthread_cancel(p_in.id);
-            LOG("pthread_cancel(%p); => %d\r\n", p_in.id, res);
+        /* wait for subprocess to terminate */
+        wait(&exit_code);
+        LOG("wait(&exit_code == %d);\r\n", exit_code);
 
-            /* join it */
-            res = pthread_join(p_in.id, NULL);
-            LOG("pthread_join(%p, NULL); => %d\r\n", p_in.id, res);
+        /* we cannot wait for the slave device to close, as
+         * something (e.g. a daemon) can leave it open for
+         * some strange reason. So, reconfigure the output
+         * device with the master configuration and close
+         * the master. That should make the writer thread
+         * to fail, and we ignore that. Just join the
+         * writer thread. */
 
-            /* exit with the subprocess exit code */
-            LOG("exit(%d);\r\n", WEXITSTATUS(exit_code));
-            exit(WEXITSTATUS(exit_code));
-        } /* case */
-    } /* switch */
+        if ((res = pthread_join(p_out.id, NULL)) < 0)
+            ERR("pthread_join" ERRNO "\n", EPMTS);
+        LOG("pthread_join(%p, NULL); => %d\r\n", p_out.id, res);
+
+        /* cancel reading thread */
+        res = pthread_cancel(p_in.id);
+        LOG("pthread_cancel(%p); => %d\r\n", p_in.id, res);
+
+        /* join it */
+        res = pthread_join(p_in.id, NULL);
+        LOG("pthread_join(%p, NULL); => %d\r\n", p_in.id, res);
+
+        /* exit with the subprocess exit code */
+        LOG("exit(%d);\r\n", WEXITSTATUS(exit_code));
+        exit(WEXITSTATUS(exit_code));
+    } /* else */
 } /* main */

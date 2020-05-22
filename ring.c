@@ -77,7 +77,6 @@ void rb_init(struct ring_buffer *rb)
     rb->rb_head
         = rb->rb_tail
         = rb->rb_buffer;
-    rb->rb_capa
-        = rb->rb_size
-        = 0;
+    rb->rb_capa = RB_BUFFER_SIZE;
+    rb->rb_size = 0;
 } /* rb_init */
