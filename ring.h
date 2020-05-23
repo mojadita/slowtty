@@ -21,16 +21,40 @@ struct ring_buffer {
     char            rb_buffer[RB_BUFFER_SIZE];
 };
 
+/* Initialize a ring buffer.
+ *
+ * @param rb the ring buffer to be initialized. */
 void
 rb_init(
         struct ring_buffer *rb);
 
+/* Read bytes to a ring buffer.
+ *
+ * @param rb the ring buffer to be updated.
+ * @param fd the file descriptor to be read from.
+ * @param n the number of bytes to read.  It should
+ *          be less than the buffer capacity, RB_BUFFER_SIZE
+ *          minus the buffer size rb->rb_size, but a check is
+ *          done inside the function and if you pass more bytes,
+ *          the maximum available are read instead.
+ * @return  The number of bytes actually read.
+ */
 ssize_t
 rb_read(
         struct ring_buffer *rb,
         int fd,
         size_t n);
 
+/* Write bytes to a ring buffer.
+ *
+ * @param rb the ring buffer to be updated.
+ * @param fd the file descriptor to be written to.
+ * @param n the number of bytes to write.  It should
+ *          be less than the buffer size, rb->rb_size, but a check
+ *          is done inside the function and if you pass more bytes,
+ *          the maximum available are read instead.
+ * @return  The number of bytes actually read.
+ */
 ssize_t
 rb_write(
         struct ring_buffer *rb,

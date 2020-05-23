@@ -45,6 +45,8 @@
 #include "slowtty.h"
 #include "delay.h"
 
+#define MIN_BUFFER      8
+
 #define MIN(_a, _b) ((_a)<(_b) ? (_a) : (_b))
 
 int ptym, ptys;
@@ -73,7 +75,9 @@ init_pthread_info(
     return pi;
 } /* init_pthread_info */
 
-void atexit_handler(void)
+void
+atexit_handler(
+        void)
 {
     /* restore the settings from the saved ones. We
      * follow the same procedure (first with stdin, then
@@ -86,7 +90,9 @@ void atexit_handler(void)
     LOG("tcsetattr(0, TCSADRAIN, &saved_tty) => %d\n", res);
 }
 
-void pass_data(struct pthread_info *pi)
+void
+pass_data(
+        struct pthread_info *pi)
 {
 
     pthread_setcanceltype(PTHREAD_CANCEL_ASYNCHRONOUS, NULL);
@@ -108,25 +114,36 @@ void pass_data(struct pthread_info *pi)
 
         /* we try to fill the full buffer every time. */
 
-        /* read as much as possible */
-        ssize_t res = rb_read(&pi->b,
-                pi->from_fd, RB_BUFFER_SIZE);
+        /* READ TO FILL THE BUFFER UP TO TWO COMPLETE
+         * WINDOWS, OR AT LEAST MIN_BUFFER CHARS. */
+        ssize_t to_read = 2 * window;
+        if (to_read < MIN_BUFFER)
+            to_read = MIN_BUFFER;
+        if (to_read > RB_BUFFER_SIZE)
+            to_read = RB_BUFFER_SIZE;
+        to_read -= pi->b.rb_size;
+        if (to_read < 0)
+            to_read = 0;
+        if (to_read > 0) {
+            ssize_t res = rb_read(&pi->b,
+                    pi->from_fd, RB_BUFFER_SIZE);
 
-		if (res == 0) {
-            LOG("%s: read: EOF on input\n", pi->name);
-            break;
-        } else if (res < 0) {
-            if (errno != EAGAIN) {
-                ERR("%s: read" ERRNO "\n", pi->name, EPMTS);
+            if (res == 0) {
+                LOG("%s: read: EOF on input\n", pi->name);
                 break;
+            } else if (res < 0) {
+                if (errno != EAGAIN) {
+                    ERR("%s: read" ERRNO "\n", pi->name, EPMTS);
+                    break;
+                }
+                res = 0;
             }
-            res = 0;
-        }
 
-        /* good read */
-        LOG("%s: rb_read(&pi->b, pi->from_fd=%d, "
-                "to_fill=%u) => %zd\r\n",
-            pi->name, pi->from_fd, RB_BUFFER_SIZE, res);
+            /* good read */
+            LOG("%s: rb_read(&pi->b, pi->from_fd=%d, "
+                    "to_fill=%u) => %zd\r\n",
+                pi->name, pi->from_fd, RB_BUFFER_SIZE, res);
+        }
 
         clock_gettime(CLOCK_REALTIME, &pi->tic);
 
@@ -173,7 +190,9 @@ void pass_data(struct pthread_info *pi)
     LOG("%s: END\n", pi->name);
 } /* pass_data */
 
-void *pthread_body_writer(void *_pi)
+void *
+pthread_body_writer(
+        void *_pi)
 {
     struct pthread_info *pi = _pi;
 
@@ -183,7 +202,9 @@ void *pthread_body_writer(void *_pi)
     return pi;
 } /* pthread_body_writer */
 
-void *pthread_body_reader(void *_pi)
+void *
+pthread_body_reader(
+        void *_pi)
 {
     struct pthread_info *pi = _pi;
 
@@ -193,7 +214,9 @@ void *pthread_body_reader(void *_pi)
     return pi;
 } /* pthread_body_reader */
 
-void pass_winsz(int sig)
+void
+pass_winsz(
+        int sig)
 {
     struct winsize ws;
     if ((flags & FLAG_DOWINCH)
@@ -206,7 +229,10 @@ void pass_winsz(int sig)
     }
 } /* pass_winsz */
 
-int main(int argc, char **argv)
+int
+main(
+        int argc,
+        char **argv)
 {
     int shelpid;
     int opt, res;
@@ -222,7 +248,8 @@ int main(int argc, char **argv)
         case 'w': flags &= ~FLAG_DOWINCH; break;
         case 's': bufsz = atoi(optarg);
             if (bufsz <= 0 || bufsz >= BUFSIZ) {
-                WARN("buffer size set to default due to invalid value (%s) passed\n",
+                WARN("buffer size set to default due to "
+                    "invalid value (%s) passed\n",
                     optarg);
                 bufsz = BUFSIZ;
             } break;
@@ -247,11 +274,12 @@ int main(int argc, char **argv)
         }
     }
 
-    /* flush all descriptors before forking (so no repeated messages
-     * on stdout). */
+    /* flush all descriptors before forking
+     * (so no repeated messages on stdout). */
     fflush(NULL);
 
-    child_pid = forkpty(&ptym, pty_name, &saved_tty, &saved_window_size);
+    child_pid = forkpty(&ptym,
+            pty_name, &saved_tty, &saved_window_size);
     if (child_pid < 0) {
         ERR("forkpty" ERRNO "\n", EPMTS);
         /* NOTREACHED */
@@ -280,12 +308,10 @@ int main(int argc, char **argv)
                 LOG("Got shell from environment variable SHELL\n");
             } else {
                 struct passwd *u = getpwnam(getlogin());
-                if (!u) {
-                    ERR("getpwnam failed\n");
-                    /* NOTREACHED */
+                if (u) {
+                    shell = u->pw_shell;
+                    LOG("Got shell from /etc/passwd file\n");
                 }
-                shell = u->pw_shell;
-                LOG("Got shell from /etc/passwd file\n");
             } /* if */
             snprintf(cmd, sizeof cmd, "%s%s",
                 flags & FLAG_LOGIN
@@ -315,10 +341,14 @@ int main(int argc, char **argv)
          * process)  So we first do a fflush(3) to dump all
          * data. */
         fflush(NULL);
+
         cfmakeraw(&stty_raw);
-        stty_raw.c_iflag &= ~(IXON | IXOFF);
+        stty_raw.c_iflag &= ~(IXON | IXOFF | IXANY );
         stty_raw.c_cc[VMIN] = 1;
         stty_raw.c_cc[VTIME] = 0;
+        stty_raw.c_cc[VSTOP] = 0;
+        stty_raw.c_cc[VSTART] = 0;
+
         /* RESTORE TTY SETTINGS AT END */
         atexit(atexit_handler);
         res = tcsetattr(0, TCSAFLUSH, &stty_raw);
@@ -337,6 +367,7 @@ int main(int argc, char **argv)
             ERR("fcntl(0, F_SETFL, 0x%04x) => %d:" ERRNO "\n",
                 res | O_NONBLOCK, res2, EPMTS);
         }
+
         /* ... AND ON ptym */
         res = fcntl(ptym, F_GETFL);
         if (res < 0) {
@@ -351,7 +382,7 @@ int main(int argc, char **argv)
 
         /* INSTALL SIGNAL HANDLER FOR SIGWINCH */
         if (flags & FLAG_DOWINCH) {
-            LOG("installing signal handler\r\n");
+            LOG("installing signal handler for SIGWINCH\r\n");
             memset(&sa, 0, sizeof sa);
             sa.sa_handler = pass_winsz;
             sigaction(SIGWINCH, &sa, NULL);
@@ -375,6 +406,7 @@ int main(int argc, char **argv)
                 p_in.id, p_in.name, res);
 
         p_out.tic = p_in.tic;
+
         /* ADVANCE THE TIC, SO IT AWAKES HALF A TICK LATER */
         p_out.tic.tv_nsec += TIC_DELAY / 2;
         if (p_out.tic.tv_nsec >= 1000000000) {
@@ -412,9 +444,9 @@ int main(int argc, char **argv)
         res = pthread_cancel(p_out.id);
         LOG("pthread_cancel(%p); => %d\r\n", p_out.id, res);
 
-        if ((res = pthread_join(p_out.id, NULL)) < 0)
-            ERR("pthread_join" ERRNO "\n", EPMTS);
-        LOG("pthread_join(%p, NULL); => %d\r\n", p_out.id, res);
+        res = pthread_join(p_out.id, NULL);
+        LOG("pthread_join(%p, NULL); => %d\r\n",
+                p_out.id, res);
 
         /* cancel reading thread */
         res = pthread_cancel(p_in.id);

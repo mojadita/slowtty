@@ -42,7 +42,8 @@ int main(int argc, char **argv)
 
     for (;;) {
         if (b.rb_size < RB_BUFFER_SIZE) {
-            size_t to_read = random() % (RB_BUFFER_SIZE - b.rb_size) + 1;
+            size_t to_read = random()
+                % (RB_BUFFER_SIZE - b.rb_size) + 1;
             printf(F("b.rb_size = %zu; to_read = %zu\n"),
                 b.rb_size, to_read);
             if (to_read) {

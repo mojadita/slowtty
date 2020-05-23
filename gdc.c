@@ -7,11 +7,17 @@
 
 #include "gdc.h"
 
-unsigned gdc(unsigned a, unsigned b)
+unsigned
+gdc(
+        unsigned a,
+        unsigned b)
 {
+    /* Euclides' algorithm. */
     while (b != 0) {
         unsigned c = a % b;
-        a = b; b = c;
+        a = b;
+        b = c;
     }
+
     return a;
 } /* gdc */

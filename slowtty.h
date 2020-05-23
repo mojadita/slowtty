@@ -1,7 +1,10 @@
-/* slowtty.h -- program to slow down the output of characters to be able to follow
- * output as if a slow terminal were attached to the computer.
+/* slowtty.h -- program to slow down the output of characters
+ * to be able to follow output as if a slow terminal were
+ * attached to the computer.
  * Author: Luis Colorado <luiscoloradourcola@gmail.com>
- * Copyright: (C) 2015 LUIS COLORADO.  This is open source copyrighted software.
+ * Copyright: (C) 2015-2020 LUIS COLORADO.  All rights reserved.
+ * This is open source copyrighted software.
+ * License: BSD.
  */
 #ifndef _SLOWTTY_H
 #define _SLOWTTY_H
@@ -68,7 +71,8 @@ struct pthread_info {
     int             from_fd,    /* descriptor we must read from */
                     to_fd;      /* descriptor we must write to */
 
-    int             flags;      /* flags of the communication channel */
+    int             flags;      /* flags of the communication
+                                 * channel */
 
     /* RING BUFFER */
     char           *name;
@@ -81,7 +85,8 @@ struct pthread_info {
 
     /* TO CALCULATE TIMING */
     unsigned long   num;        /* numerator of integer chars to pass */
-    unsigned long   den;        /* denominator of integer chars to pass */
+    unsigned long   den;        /* denominator of integer chars
+                                 * to pass */
     unsigned long   acc;        /* fractional part of char to pass. */
     unsigned long   ctw;        /* whole chars to write */
 

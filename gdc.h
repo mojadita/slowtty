@@ -8,6 +8,17 @@
 #ifndef _GDC_H
 #define _GDC_H
 
-unsigned gdc(unsigned a, unsigned b);
+/* Calculates the maximum common divisor for
+ * two unsigned values.
+ *
+ * @param a one of the values.
+ * @param b the other value.
+ *
+ * @return the greatest common divisor of passed parameters.
+ */
+unsigned
+gdc(
+        unsigned a,
+        unsigned b);
 
 #endif /* _GDC_H */

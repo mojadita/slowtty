@@ -8,20 +8,21 @@
  *             all rights reserved.
  */
 
-/* We consider the time divided in tics of 0.04s (25 frames/sec) and, to
- * be precise, we stick on 0.04s tic marks, so that value is, indeed, fixed
- * as a constant (not configurable).
+/* We consider the time divided in tics of 0.04s (25 frames/sec)
+ * and, to be precise, we stick on 0.04s tic marks, so that value
+ * is, indeed, fixed as a constant (not configurable).
  *
- * Based on the baudrate (we check if baudrate, char size, stopbits or parity
- * has changed and only do this calculation in case of a change.) we then
- * calculate the amount of time a single character needs to be sent over the
- * line, and based on this we get the number of characters that can be sen
- * in the next tick time.
+ * Based on the baudrate (we check if baudrate, char size, stopbits or
+ * parity has changed and only do this calculation in case of a
+ * change.) we then calculate the amount of time a single character
+ * needs to be sent over the line, and based on this we get the number
+ * of characters that can be sent in the next tick time.
  *
- * We do accumulate the fraction of char allowable, if there's no enough time
- * to send another full character, and accumulate that fraction, based on the
- * amount resultant, so we get an exact number of characters to be written
- * to the output device, rounded to one char. */
+ * We do accumulate the fraction of char allowable, if there's no
+ * enough time to send another full character, and accumulate that
+ * fraction, based on the amount resultant, so we get an exact number
+ * of characters to be written to the output device, rounded to one
+ * char. */
 
 #include <errno.h>
 #include <stdio.h>
@@ -47,9 +48,9 @@
 static unsigned long getthebr(struct termios *t)
 {
 
-#define B(_n) case B##_n: do {                \
+#define B(_n) case B##_n: do {                    \
         /*LOG("setting is %d baudios\r\n", _n);*/ \
-        return (_n);                          \
+        return (_n);                              \
     } while(0)
 
     speed_t s = cfgetospeed(t);
@@ -70,9 +71,9 @@ unsigned long delay(struct pthread_info *pi)
 
     /* the recalculation of delay times depends on the change of termios
      * parameters.  Only when a change in termios parameters is made we
-     * calculate the new values for the number of characters to output and
-     * the delay time. We initialize it to all zeros, so in the first time
-     * we get an update. */
+     * calculate the new values for the number of characters to output
+     * and * the delay time.  We initialize it to all zeros, so in the
+     * first time we get an update. */
     if ((res = tcgetattr(ptym, &saved_tty)) < 0) {
         ERR("%s: tcgetattr " ERRNO "\r\n", pi->name, EPMTS);
     }

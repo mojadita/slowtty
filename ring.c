@@ -13,7 +13,7 @@
 #include "slowtty.h"
 
 #ifndef F
-#define F(_fmt) "%s:%d:%s: " _fmt, __FILE__, __LINE__, __func__
+#define F(_fmt) "%s:%d:%s: "_fmt,__FILE__,__LINE__,__func__
 #endif
 
 static ssize_t
@@ -23,9 +23,9 @@ rb_io(
         int          fd,    /* file descriptor involved in
                              * system call */
         size_t       nio,   /* number of bytes to io */
-        char       **rph,   /* reference to pointer to operate on
-							 * (passed by reference, we have to
-							 * update it) */
+        char       **rph,   /* reference to pointer to
+                             * operate on (passed by reference, we have
+                             * to update it) */
         ssize_t    (*io_op)(/* function to call to do actual io */
                 int          fd,    /* file descriptor */
                 const struct iovec
@@ -44,7 +44,7 @@ rb_io(
                 ph += nio;
     if (ph >= end) {
         /* bytes left to process */
-        size_t    n = ph - end;
+        size_t n = ph - end;
 
         (piov++)->iov_len = nio - n;
         nio = n;
@@ -53,11 +53,12 @@ rb_io(
             (piov++)->iov_len = nio;
         }
     } else {
-		(piov++)->iov_len = nio;
-	}
+        (piov++)->iov_len = nio;
+    }
     ssize_t res = io_op(fd, iov, piov - iov);
 
-#if 0 /* THIS LOG IS TOO HEAVY TO USE IN PRODUCTION */
+#if 0
+    /* THIS LOG IS TOO HEAVY TO USE IN PRODUCTION */
     fprintf(stderr, F("%s(fd=%d, {"), fname, fd);
     char *sep = "";
     for (struct iovec *p = iov; p < piov; p++) {
@@ -71,7 +72,8 @@ rb_io(
 #endif
 
     if (res < 0) {
-#if 0 /* AND THIS ONE ALSO */
+#if 0
+        /* AND THIS ONE ALSO */
         fprintf(stderr,
             F("%s: ERROR" ERRNO "\n"),
             fname, EPMTS);
@@ -85,13 +87,17 @@ rb_io(
     return res;
 } /* rb_io */
 
-ssize_t rb_read(struct ring_buffer *rb, int fd, size_t n)
+ssize_t
+rb_read(
+        struct ring_buffer *rb,
+        int fd,
+        size_t n)
 {
     if (n > RB_BUFFER_SIZE - rb->rb_size)
         n = RB_BUFFER_SIZE - rb->rb_size;
 
     ssize_t res = rb_io(rb, fd, n,
-			&rb->rb_tail, readv, "readv");
+            &rb->rb_tail, readv, "readv");
 
     if (res > 0)
         rb->rb_size += res;
@@ -99,13 +105,19 @@ ssize_t rb_read(struct ring_buffer *rb, int fd, size_t n)
     return res;
 } /* rb_read */
 
-ssize_t rb_write(struct ring_buffer *rb, int fd, size_t n)
+ssize_t
+rb_write(
+        struct ring_buffer *rb,
+        int fd,
+        size_t n)
 {
     if (n > rb->rb_size)
         n = rb->rb_size;
 
-    ssize_t res = rb_io(rb, fd, n,
-			&rb->rb_head, writev, "writev");
+    ssize_t res = rb_io(
+            rb, fd, n,
+            &rb->rb_head,
+            writev, "writev");
 
     if (res > 0)
         rb->rb_size -= res;
@@ -113,7 +125,9 @@ ssize_t rb_write(struct ring_buffer *rb, int fd, size_t n)
     return res;
 } /* rb_write */
 
-void rb_init(struct ring_buffer *rb)
+void
+rb_init(
+        struct ring_buffer *rb)
 {
     rb->rb_head = rb->rb_end
                 = rb->rb_tail
