@@ -64,7 +64,7 @@ static unsigned long getthebr(struct termios *t)
 #undef B
 } /* getthebr */
 
-unsigned long delay(struct pthread_info *p)
+unsigned long delay(struct pthread_info *pi)
 {
     unsigned long res;
 
@@ -74,14 +74,14 @@ unsigned long delay(struct pthread_info *p)
      * the delay time. We initialize it to all zeros, so in the first time
      * we get an update. */
     if ((res = tcgetattr(ptym, &saved_tty)) < 0) {
-        ERR("tcgetattr" ERRNO "\r\n", EPMTS);
+        ERR("%s: tcgetattr " ERRNO "\r\n", pi->name, EPMTS);
     }
 
     speed_t new_baudrate = getthebr(&saved_tty);
     tcflag_t  new_cflag = saved_tty.c_cflag;
 
-    if (   p->svd_bauds != new_baudrate
-        || p->svd_cflag != new_cflag) { /* changed parameters */
+    if (   pi->svd_bauds != new_baudrate
+        || pi->svd_cflag != new_cflag) { /* changed parameters */
 
         int bits_per_char;
         switch (new_cflag & CSIZE) { /* character size */
@@ -93,42 +93,42 @@ unsigned long delay(struct pthread_info *p)
         if (saved_tty.c_cflag & PARENB) bits_per_char++; /* PARITY bit */
         if (saved_tty.c_cflag & CSTOPB) bits_per_char++; /* 2ND_STOP */
 
-        p->num = new_baudrate;
-        p->den = bits_per_char * TICS_PER_SEC;  /* ticks/sec. */
-        long common_div = gdc(p->num, p->den);
+        pi->num = new_baudrate;
+        pi->den = bits_per_char * TICS_PER_SEC;  /* ticks/sec. */
+        long common_div = gdc(pi->num, pi->den);
         if (common_div > 1) {
-            p->num /= common_div;
-            p->den /= common_div;
+            pi->num /= common_div;
+            pi->den /= common_div;
         }
-        p->acc = p->den / 2; /* round to half a tic */
+        pi->acc = pi->den / 2; /* round to half a tic */
 
-        LOG("num==%ld, den=%ld, acc=%ld\r\n",
-                p->num, p->den, p->acc);
-        p->svd_bauds = new_baudrate;
-        p->svd_cflag = new_cflag;
+        LOG("%s: num==%ld, den=%ld, acc=%ld\r\n",
+                pi->name, pi->num, pi->den, pi->acc);
+        pi->svd_bauds = new_baudrate;
+        pi->svd_cflag = new_cflag;
     }
 
     /* now, update */
-    p->acc += p->num % p->den;
-    p->ctw  = p->num / p->den;
-    if (p->acc >= p->den) { /* carry */
-        p->ctw++;
-        p->acc -= p->den;
+    pi->acc += pi->num % pi->den;
+    pi->ctw  = pi->num / pi->den;
+    if (pi->acc >= pi->den) { /* carry */
+        pi->ctw++;
+        pi->acc -= pi->den;
     }
-    LOG("p->acc==%ld, p->den==%ld, p->ctw==%ld\r\n",
-        p->acc, p->den, p->ctw);
+    LOG("%s: pi->acc==%ld, pi->den==%ld, pi->ctw==%ld\r\n",
+        pi->name, pi->acc, pi->den, pi->ctw);
 
     /* add the tic delay */
-    p->tic.tv_nsec += TIC_DELAY;
-    p->tic.tv_nsec -= p->tic.tv_nsec % TIC_DELAY;
-    if (p->tic.tv_nsec >= 1000000000) { /* carry */
-        p->tic.tv_sec++;
-        p->tic.tv_nsec -= 1000000000;
+    pi->tic.tv_nsec += TIC_DELAY;
+    pi->tic.tv_nsec -= pi->tic.tv_nsec % TIC_DELAY;
+    if (pi->tic.tv_nsec >= 1000000000) { /* carry */
+        pi->tic.tv_sec++;
+        pi->tic.tv_nsec -= 1000000000;
     }
-    res = clock_nanosleep(CLOCK_REALTIME, TIMER_ABSTIME, &p->tic, NULL);
+    res = clock_nanosleep(CLOCK_REALTIME, TIMER_ABSTIME, &pi->tic, NULL);
     if (res) {
-        ERR("clock_gettime" ERRNO "\r\n", EPMTS);
+        ERR("%s: clock_gettime" ERRNO "\r\n", pi->name, EPMTS);
     }
 
-    return p->ctw;
+    return pi->ctw;
 } /* delay */

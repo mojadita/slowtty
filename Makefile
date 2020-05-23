@@ -56,10 +56,10 @@ deinstall:
 	$(RM) $(bindir)/slowtty
 	$(RM) $(man1dir)/slowtty.1
 
-slowtty: $(slowtty_objs)
-	$(CC) $(CFLAGS) $(LDFLAGS) -o $@ $($@_objs) $($@_libs)
+slowtty: $(slowtty_deps) $(slowtty_objs)
+	$(CC) $(CFLAGS) $(LDFLAGS) -o $@ $($@_objs) $($@_ldflags) $($@_libs)
 
-test_ring: $(test_ring_objs)
-	$(CC) $(CFLAGS) $(LDFLAGS) -o $@ $($@_objs) $($@_libs)
+test_ring: $(slowtty_deps) $(test_ring_objs)
+	$(CC) $(CFLAGS) $(LDFLAGS) -o $@ $($@_objs) $($@_ldflags) $($@_libs)
 
 $(slowtty_objs): delay.h slowtty.h
