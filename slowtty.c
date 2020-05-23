@@ -106,44 +106,41 @@ void pass_data(struct pthread_info *pi)
             continue;
         }
 
-		/* we try to fill the full buffer every time. */
-        ssize_t to_fill = pi->b.rb_capa - pi->b.rb_size;
+        /* we try to fill the full buffer every time. */
 
-        if (to_fill > 0) { /* if we can read */
+        /* read as much as possible */
+        ssize_t res = rb_read(&pi->b,
+                pi->from_fd, RB_BUFFER_SIZE);
 
-            /* read as much as possible */
-            ssize_t res = rb_read(&pi->b, to_fill, pi->from_fd);
-
-            if (res < 0) {
-                if (errno != EAGAIN) {
-                    ERR("%s: read" ERRNO "\n", pi->name, EPMTS);
-                    break;
-                }
-                res = 0;
-            } else if (res == 0) {
-                LOG("%s: read: EOF on input\n", pi->name);
+		if (res == 0) {
+            LOG("%s: read: EOF on input\n", pi->name);
+            break;
+        } else if (res < 0) {
+            if (errno != EAGAIN) {
+                ERR("%s: read" ERRNO "\n", pi->name, EPMTS);
                 break;
             }
+            res = 0;
+        }
 
-            /* good read */
-            LOG("%s: rb_read(&pi->b, to_fill=%lu, "
-                "pi->from_fd=%d) => %zd\r\n",
-                pi->name, to_fill, pi->from_fd, res);
+        /* good read */
+        LOG("%s: rb_read(&pi->b, pi->from_fd=%d, "
+                "to_fill=%u) => %zd\r\n",
+            pi->name, pi->from_fd, RB_BUFFER_SIZE, res);
 
-            clock_gettime(CLOCK_REALTIME, &pi->tic);
-        } /* if (to_fill > 0) */
+        clock_gettime(CLOCK_REALTIME, &pi->tic);
 
         size_t to_write = MIN(pi->b.rb_size, window);
 
         if (to_write > 0) {
-            ssize_t res = rb_write(&pi->b, to_write, pi->to_fd);
+            ssize_t res = rb_write(&pi->b, pi->to_fd, to_write);
             if (res < 0) {
                 ERR("%s: write" ERRNO "\n", pi->name, EPMTS);
                 break;
             }
-            LOG("%s: rb_write(&pi->b, to_write=%lu, "
-                "pi->to_fd=%d) => %zd\r\n",
-                pi->name, to_write, pi->to_fd, res);
+            LOG("%s: rb_write(&pi->b, pi->to_fd=%d, "
+                    "to_write=%lu) => %zd\r\n",
+                pi->name, pi->to_fd, to_write, res);
         }
 
         /* check if we have to start/stop the channel */
@@ -340,17 +337,17 @@ int main(int argc, char **argv)
             ERR("fcntl(0, F_SETFL, 0x%04x) => %d:" ERRNO "\n",
                 res | O_NONBLOCK, res2, EPMTS);
         }
-		/* ... AND ON ptym */
-		res = fcntl(ptym, F_GETFL);
-		if (res < 0) {
-			ERR("fcntl(ptym=%d, F_GETFL) => %d:" ERRNO "\n",
-				ptym, res, EPMTS);
-		}
-		res2 = fcntl(ptym, F_SETFL, res | O_NONBLOCK);
-		if (res2 < 0) {
-			ERR("fcntl(ptym=%d, F_SETFL, 0x%04x) => %d:" ERRNO "\n",
-				ptym, res | O_NONBLOCK, res2, EPMTS);
-		}
+        /* ... AND ON ptym */
+        res = fcntl(ptym, F_GETFL);
+        if (res < 0) {
+            ERR("fcntl(ptym=%d, F_GETFL) => %d:" ERRNO "\n",
+                ptym, res, EPMTS);
+        }
+        res2 = fcntl(ptym, F_SETFL, res | O_NONBLOCK);
+        if (res2 < 0) {
+            ERR("fcntl(ptym=%d, F_SETFL, 0x%04x) => %d:" ERRNO "\n",
+                ptym, res | O_NONBLOCK, res2, EPMTS);
+        }
 
         /* INSTALL SIGNAL HANDLER FOR SIGWINCH */
         if (flags & FLAG_DOWINCH) {
@@ -378,7 +375,7 @@ int main(int argc, char **argv)
                 p_in.id, p_in.name, res);
 
         p_out.tic = p_in.tic;
-		/* ADVANCE THE TIC, SO IT AWAKES HALF A TICK LATER */
+        /* ADVANCE THE TIC, SO IT AWAKES HALF A TICK LATER */
         p_out.tic.tv_nsec += TIC_DELAY / 2;
         if (p_out.tic.tv_nsec >= 1000000000) {
             p_out.tic.tv_sec++;
@@ -411,9 +408,9 @@ int main(int argc, char **argv)
          * to fail, and we ignore that. Just join the
          * writer thread. */
 
-		/* cancel writing thread */
-		res = pthread_cancel(p_out.id);
-		LOG("pthread_cancel(%p); => %d\r\n", p_out.id, res);
+        /* cancel writing thread */
+        res = pthread_cancel(p_out.id);
+        LOG("pthread_cancel(%p); => %d\r\n", p_out.id, res);
 
         if ((res = pthread_join(p_out.id, NULL)) < 0)
             ERR("pthread_join" ERRNO "\n", EPMTS);

@@ -14,16 +14,27 @@
 
 struct ring_buffer {
     char           *rb_head,
-                   *rb_tail;
-    size_t          rb_capa,
-                    rb_size,
-                    rb_iov_n;
-    struct iovec    rb_iov[2];
+                   *rb_tail,
+                   *rb_end;
+    size_t          rb_size;
+
     char            rb_buffer[RB_BUFFER_SIZE];
 };
 
-void rb_init(struct ring_buffer *rb);
-ssize_t rb_read(struct ring_buffer *rb, size_t n, int fd);
-ssize_t rb_write(struct ring_buffer *rb, size_t n, int fd);
+void
+rb_init(
+        struct ring_buffer *rb);
+
+ssize_t
+rb_read(
+        struct ring_buffer *rb,
+        int fd,
+        size_t n);
+
+ssize_t
+rb_write(
+        struct ring_buffer *rb,
+        int fd,
+        size_t n);
 
 #endif /* _RB_H */
