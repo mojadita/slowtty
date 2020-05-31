@@ -127,7 +127,7 @@ unsigned long delay(struct pthread_info *pi)
         pi->tic.tv_nsec -= 1000000000;
     }
     res = clock_nanosleep(CLOCK_REALTIME, TIMER_ABSTIME, &pi->tic, NULL);
-    if (res) {
+    if (res < 0) {
         ERR("%s: clock_gettime" ERRNO "\r\n", pi->name, EPMTS);
     }
 

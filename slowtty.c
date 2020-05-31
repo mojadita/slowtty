@@ -90,6 +90,29 @@ atexit_handler(
     LOG("tcsetattr(0, TCSADRAIN, &saved_tty) => %d\n", res);
 }
 
+/**
+ * this routine is called on each thread to pass the data up or
+ * down the channel.  The thread goes in a loop until it is
+ * cancelled from main() in which a delay of 1/60th s. is
+ * scheduled and the number of chars allowed to pass in such
+ * interval is calculated.  This is the window of the tick
+ * interval.  If the window is zero, we cannot pass any data on
+ * this tick and so, nothing is done on this pass.
+ * if the window is greater than zero, a number or characters not
+ * less than MIN_BUFFER and no more of one of the buffer capacity
+ * less the buffer size of two windows is read (this is made to
+ * buffer a small amount of characters in order to process
+ * interrupt as fast as possible, and send a XOFF back to the
+ * origin if more than two windows are buffered for output.
+ * In case the buffer size descends below the window size, an
+ * XON character is written back to the source in order to
+ * restart the flow of characters from the source.
+ * A number of characters (the buffer size or the window, which
+ * is less) is written to the output side of the channel, so at
+ * maximum, window chars are output per tick.
+ *
+ * @param pi is a reference to the thread global data to use.
+ */
 void
 pass_data(
         struct pthread_info *pi)
@@ -129,11 +152,11 @@ pass_data(
                     pi->from_fd, RB_BUFFER_SIZE);
 
             if (res == 0) {
-                LOG("%s: read: EOF on input\n", pi->name);
+                LOG("%s: rb_read: EOF on input\n", pi->name);
                 break;
             } else if (res < 0) {
-                if (errno != EAGAIN) {
-                    ERR("%s: read" ERRNO "\n", pi->name, EPMTS);
+                if (errno != EAGAIN && errno != EINTR) {
+                    ERR("%s: rb_read" ERRNO "\n", pi->name, EPMTS);
                     break;
                 }
                 res = 0;
@@ -218,15 +241,32 @@ void
 pass_winsz(
         int sig)
 {
+	if (!(flags & FLAG_DOWINCH)) {
+		LOG("Changed window size, "
+			"but deactivated from config\r\n");
+		return;
+	}
     struct winsize ws;
-    if ((flags & FLAG_DOWINCH)
-            && (ioctl(0, TIOCGWINSZ, &ws)
-                || ioctl(ptym, TIOCSWINSZ, &ws)))
-    {
-        WARN("cannot pass WINSZ from master pty to slave"
-                ERRNO ", disabling it.\r\n", EPMTS);
-        flags &= ~FLAG_DOWINCH; /* disable */
-    }
+	int res = ioctl(0, TIOCGWINSZ, &ws);
+	if (res < 0) {
+		WARN("cannot get the new window "
+			"size, deactivating:" ERRNO "\r\n",
+			EPMTS);
+		flags &= ~FLAG_DOWINCH; /* disable */
+		return;
+	} 
+	res = ioctl(ptym, TIOCSWINSZ, &ws);
+	if (res < 0) {
+		WARN("cannot set the new window "
+			"size to (r=%d, c=%d), deactivating"
+			ERRNO "\r\n",
+			ws.ws_row, ws.ws_col,
+			EPMTS);
+       	flags &= ~FLAG_DOWINCH; /* disable */
+		return;
+	}
+	LOG("Changed window size to (r=%d, c=%d)\r\n",
+		ws.ws_row, ws.ws_col);
 } /* pass_winsz */
 
 int
@@ -429,7 +469,11 @@ main(
                 p_out.id, p_out.name, res);
 
         /* wait for subprocess to terminate */
-        wait(&exit_code);
+        while ((res = wait(&exit_code)) < 0
+				&& errno == EINTR)
+		{
+			LOG("Interrupt received, retry.\r\n");
+		}
         LOG("wait(&exit_code == %d);\r\n", exit_code);
 
         /* we cannot wait for the slave device to close, as
