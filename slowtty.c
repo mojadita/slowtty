@@ -241,32 +241,32 @@ void
 pass_winsz(
         int sig)
 {
-	if (!(flags & FLAG_DOWINCH)) {
-		LOG("Changed window size, "
-			"but deactivated from config\r\n");
-		return;
-	}
+    if (!(flags & FLAG_DOWINCH)) {
+        LOG("Changed window size, "
+            "but deactivated from config\r\n");
+        return;
+    }
     struct winsize ws;
-	int res = ioctl(0, TIOCGWINSZ, &ws);
-	if (res < 0) {
-		WARN("cannot get the new window "
-			"size, deactivating:" ERRNO "\r\n",
-			EPMTS);
-		flags &= ~FLAG_DOWINCH; /* disable */
-		return;
-	} 
-	res = ioctl(ptym, TIOCSWINSZ, &ws);
-	if (res < 0) {
-		WARN("cannot set the new window "
-			"size to (r=%d, c=%d), deactivating"
-			ERRNO "\r\n",
-			ws.ws_row, ws.ws_col,
-			EPMTS);
-       	flags &= ~FLAG_DOWINCH; /* disable */
-		return;
-	}
-	LOG("Changed window size to (r=%d, c=%d)\r\n",
-		ws.ws_row, ws.ws_col);
+    int res = ioctl(0, TIOCGWINSZ, &ws);
+    if (res < 0) {
+        WARN("cannot get the new window "
+            "size, deactivating:" ERRNO "\r\n",
+            EPMTS);
+        flags &= ~FLAG_DOWINCH; /* disable */
+        return;
+    }
+    res = ioctl(ptym, TIOCSWINSZ, &ws);
+    if (res < 0) {
+        WARN("cannot set the new window "
+            "size to (r=%d, c=%d), deactivating"
+            ERRNO "\r\n",
+            ws.ws_row, ws.ws_col,
+            EPMTS);
+        flags &= ~FLAG_DOWINCH; /* disable */
+        return;
+    }
+    LOG("Changed window size to (r=%d, c=%d)\r\n",
+        ws.ws_row, ws.ws_col);
 } /* pass_winsz */
 
 int
@@ -470,10 +470,10 @@ main(
 
         /* wait for subprocess to terminate */
         while ((res = wait(&exit_code)) < 0
-				&& errno == EINTR)
-		{
-			LOG("Interrupt received, retry.\r\n");
-		}
+                && errno == EINTR)
+        {
+            LOG("Interrupt received, retry.\r\n");
+        }
         LOG("wait(&exit_code == %d);\r\n", exit_code);
 
         /* we cannot wait for the slave device to close, as
