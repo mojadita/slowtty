@@ -45,7 +45,7 @@
 #include "slowtty.h"
 #include "delay.h"
 
-#define DO_FINISH_ITER	6 /* six reads without data */
+#define DO_FINISH_ITER  6 /* six reads without data */
 
 #define MIN_BUFFER      8
 
@@ -73,7 +73,7 @@ init_pthread_info(
     pi->name        = name;
     pi->other       = other;
     pi->flags       = 0;
-	pi->do_finish   = 0;
+    pi->do_finish   = 0;
     rb_init(&pi->b);
     return pi;
 } /* init_pthread_info */
@@ -169,15 +169,15 @@ pass_data(
 
         clock_gettime(CLOCK_REALTIME, &pi->tic);
 
-		if (   pi->do_finish
-			&& pi->b.rb_size == 0
-			&& !--pi->do_finish)
-		{
-			LOG("%s: do_finish && b.rb_size == 0 "
-				"=> FINISH\r\n",
-				pi->name);
-			break;
-		}
+        if (   pi->do_finish
+            && pi->b.rb_size == 0
+            && !--pi->do_finish)
+        {
+            LOG("%s: do_finish && b.rb_size == 0 "
+                "=> FINISH\r\n",
+                pi->name);
+            break;
+        }
 
         size_t to_write = MIN(pi->b.rb_size, window);
 
@@ -403,7 +403,7 @@ main(
         res = tcsetattr(0, TCSADRAIN, &stty_raw);
         if (res < 0) {
             ERR("tcsetattr(0, &stty_raw)"
-				ERRNO "\n", EPMTS);
+                ERRNO "\n", EPMTS);
         } /* if */
 
         /* SET THE O_NONBLOCK on stdin */
@@ -415,22 +415,22 @@ main(
         int res2 = fcntl(0, F_SETFL, res | O_NONBLOCK);
         if (res2 < 0) {
             ERR("fcntl(0, F_SETFL, 0x%04x) => %d:"
-				ERRNO "\n",
+                ERRNO "\n",
                 res | O_NONBLOCK, res2,
-				EPMTS);
+                EPMTS);
         }
 
         /* ... AND ON ptym */
         res = fcntl(ptym, F_GETFL);
         if (res < 0) {
             ERR("fcntl(ptym=%d, F_GETFL) => %d:"
-				ERRNO "\n",
+                ERRNO "\n",
                 ptym, res, EPMTS);
         }
         res2 = fcntl(ptym, F_SETFL, res | O_NONBLOCK);
         if (res2 < 0) {
             ERR("fcntl(ptym=%d, F_SETFL, 0x%04x) => %d:"
-				ERRNO "\n",
+                ERRNO "\n",
                 ptym, res | O_NONBLOCK, res2, EPMTS);
         }
 
@@ -490,21 +490,21 @@ main(
         }
         LOG("wait(&exit_code == %d);\r\n", exit_code);
 
-		/* WAIT FOR THE READING END */
-		p_in.do_finish = DO_FINISH_ITER;
-		res = pthread_join(p_in.id, NULL);
-		if (res < 0) {
-			LOG("pthread_join[%s]" ERRNO "\r\n",
-				p_in.name, EPMTS);
-		}
+        /* WAIT FOR THE READING END */
+        p_in.do_finish = DO_FINISH_ITER;
+        res = pthread_join(p_in.id, NULL);
+        if (res < 0) {
+            LOG("pthread_join[%s]" ERRNO "\r\n",
+                p_in.name, EPMTS);
+        }
 
-		/* WAIT FOR THE WRITING END */
-		p_out.do_finish = TRUE;
-		res = pthread_join(p_out.id, NULL);
-		if (res < 0) {
-			LOG("pthread_join[%s]" ERRNO "\r\n",
-				p_out.name, EPMTS);
-		}
+        /* WAIT FOR THE WRITING END */
+        p_out.do_finish = TRUE;
+        res = pthread_join(p_out.id, NULL);
+        if (res < 0) {
+            LOG("pthread_join[%s]" ERRNO "\r\n",
+                p_out.name, EPMTS);
+        }
 
         /* exit with the subprocess exit code */
         LOG("exit(%d);\r\n", WEXITSTATUS(exit_code));

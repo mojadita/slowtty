@@ -14,8 +14,8 @@
 #include "ring.h"
 
 #ifndef FALSE
-#define FALSE	(0)
-#define TRUE	(!FALSE)
+#define FALSE   (0)
+#define TRUE    (!FALSE)
 #endif
 
 #ifndef BUFFER_SIZE
