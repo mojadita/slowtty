@@ -45,6 +45,8 @@
 #include "slowtty.h"
 #include "delay.h"
 
+#define DO_FINISH_ITER	6 /* six reads without data */
+
 #define MIN_BUFFER      8
 
 #define MIN(_a, _b) ((_a)<(_b) ? (_a) : (_b))
@@ -71,6 +73,7 @@ init_pthread_info(
     pi->name        = name;
     pi->other       = other;
     pi->flags       = 0;
+	pi->do_finish   = 0;
     rb_init(&pi->b);
     return pi;
 } /* init_pthread_info */
@@ -117,10 +120,6 @@ void
 pass_data(
         struct pthread_info *pi)
 {
-
-    pthread_setcanceltype(PTHREAD_CANCEL_ASYNCHRONOUS, NULL);
-    pthread_setcancelstate(PTHREAD_CANCEL_ENABLE, NULL);
-
     LOG("%s: START\n", pi->name);
     for (;;) {
 
@@ -169,6 +168,16 @@ pass_data(
         }
 
         clock_gettime(CLOCK_REALTIME, &pi->tic);
+
+		if (   pi->do_finish
+			&& pi->b.rb_size == 0
+			&& !--pi->do_finish)
+		{
+			LOG("%s: do_finish && b.rb_size == 0 "
+				"=> FINISH\r\n",
+				pi->name);
+			break;
+		}
 
         size_t to_write = MIN(pi->b.rb_size, window);
 
@@ -391,9 +400,10 @@ main(
 
         /* RESTORE TTY SETTINGS AT END */
         atexit(atexit_handler);
-        res = tcsetattr(0, TCSAFLUSH, &stty_raw);
+        res = tcsetattr(0, TCSADRAIN, &stty_raw);
         if (res < 0) {
-            ERR("tcsetattr(0, ...)" ERRNO "\n", EPMTS);
+            ERR("tcsetattr(0, &stty_raw)"
+				ERRNO "\n", EPMTS);
         } /* if */
 
         /* SET THE O_NONBLOCK on stdin */
@@ -404,19 +414,23 @@ main(
         }
         int res2 = fcntl(0, F_SETFL, res | O_NONBLOCK);
         if (res2 < 0) {
-            ERR("fcntl(0, F_SETFL, 0x%04x) => %d:" ERRNO "\n",
-                res | O_NONBLOCK, res2, EPMTS);
+            ERR("fcntl(0, F_SETFL, 0x%04x) => %d:"
+				ERRNO "\n",
+                res | O_NONBLOCK, res2,
+				EPMTS);
         }
 
         /* ... AND ON ptym */
         res = fcntl(ptym, F_GETFL);
         if (res < 0) {
-            ERR("fcntl(ptym=%d, F_GETFL) => %d:" ERRNO "\n",
+            ERR("fcntl(ptym=%d, F_GETFL) => %d:"
+				ERRNO "\n",
                 ptym, res, EPMTS);
         }
         res2 = fcntl(ptym, F_SETFL, res | O_NONBLOCK);
         if (res2 < 0) {
-            ERR("fcntl(ptym=%d, F_SETFL, 0x%04x) => %d:" ERRNO "\n",
+            ERR("fcntl(ptym=%d, F_SETFL, 0x%04x) => %d:"
+				ERRNO "\n",
                 ptym, res | O_NONBLOCK, res2, EPMTS);
         }
 
@@ -476,32 +490,24 @@ main(
         }
         LOG("wait(&exit_code == %d);\r\n", exit_code);
 
-        /* we cannot wait for the slave device to close, as
-         * something (e.g. a daemon) can leave it open for
-         * some reason.  So, reconfigure the output
-         * device with the master configuration and close
-         * the master. That should make the writer thread
-         * to fail, and we ignore that. Just join the
-         * writer thread. */
+		/* WAIT FOR THE READING END */
+		p_in.do_finish = DO_FINISH_ITER;
+		res = pthread_join(p_in.id, NULL);
+		if (res < 0) {
+			LOG("pthread_join[%s]" ERRNO "\r\n",
+				p_in.name, EPMTS);
+		}
 
-        /* cancel writing thread */
-        res = pthread_cancel(p_out.id);
-        LOG("pthread_cancel(%p); => %d\r\n", p_out.id, res);
-
-        res = pthread_join(p_out.id, NULL);
-        LOG("pthread_join(%p, NULL); => %d\r\n",
-                p_out.id, res);
-
-        /* cancel reading thread */
-        res = pthread_cancel(p_in.id);
-        LOG("pthread_cancel(%p); => %d\r\n", p_in.id, res);
-
-        /* join it */
-        res = pthread_join(p_in.id, NULL);
-        LOG("pthread_join(%p, NULL); => %d\r\n", p_in.id, res);
+		/* WAIT FOR THE WRITING END */
+		p_out.do_finish = TRUE;
+		res = pthread_join(p_out.id, NULL);
+		if (res < 0) {
+			LOG("pthread_join[%s]" ERRNO "\r\n",
+				p_out.name, EPMTS);
+		}
 
         /* exit with the subprocess exit code */
         LOG("exit(%d);\r\n", WEXITSTATUS(exit_code));
         exit(WEXITSTATUS(exit_code));
-    } /* else */
+    } /* PARENT */
 } /* main */

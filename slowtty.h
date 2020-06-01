@@ -13,6 +13,11 @@
 
 #include "ring.h"
 
+#ifndef FALSE
+#define FALSE	(0)
+#define TRUE	(!FALSE)
+#endif
+
 #ifndef BUFFER_SIZE
 #define BUFFER_SIZE     (4096)
 #endif
@@ -73,6 +78,8 @@ struct pthread_info {
 
     int             flags;      /* flags of the communication
                                  * channel */
+    volatile int    do_finish;  /* to tell thread when it's time
+                                 * to finish. */
 
     /* RING BUFFER */
     char           *name;
