@@ -1,7 +1,7 @@
 # slowtty -- program to simulate the baudrate speed of a serial line on
 # a local tty (or network based).
 # Author: Luis Colorado <luiscoloradourcola@gmail.com>
-# Copyright: (C) 2015 LUIS COLORADO.  This is open source copyrighted software.
+# Copyright: (C) 2015-2025 LUIS COLORADO.  All rights reserved.
 # Date: Tue Aug  2 16:00:52 EEST 2016
 
 # Uncomment the following line to compile this program on BSD
@@ -18,43 +18,58 @@
 #
 # CFLAGS += -DHAS_PTY_H=1
 
-prefix	?= $(HOME)
-bindir	?= $(prefix)/bin
-mandir	?= $(prefix)/man
-man1dir	?= $(mandir)/man1
+OS             != uname -o
 
-INSTALL	?=install
-RM 		?= rm -f
+INSTALL	       ?= install
+RM 		       ?= rm -f
 
-CFLAGS	+= -pthread
-DMOD	?= -m 0755
-XMOD	?= -m 0711
-FMOD	?= -m 0644
-UMOD	?= -o `id -u` -g `id -g`
+CFLAGS	       += -pthread
+DMOD	       ?= 0755
+XMOD	       ?= 0755
+FMOD	       ?= 0644
 
-targets  = slowtty test_ring
-toclean	+= $(targets)
+OWN-FreeBSD    ?= root
+GRP-FreeBSD    ?= wheel
 
-test_ring_objs = test_ring.o ring.o
-toclean += $(test_ring_objs)
+OWN-GNU/Linux  ?= bin
+GRP-GNU/Linux  ?= bin
 
-slowtty_objs = slowtty.o delay.o ring.o gdc.o
-toclean += $(slowtty_objs)
-slowtty_libs = -lutil -lpthread
+IFLAGS         ?= -o $(OWN-$(OS)) -g $(GRP-$(OS))
+
+targets         = slowtty test_ring slowtty.1.gz
+toclean	       += $(targets)
+
+test_ring_objs  = test_ring.o ring.o
+toclean        += $(test_ring_objs)
+
+slowtty_objs    = slowtty.o delay.o ring.o gdc.o main.o
+slowtty_libs    = -lutil -lpthread
+toclean        += $(slowtty_objs)
 
 all: $(targets)
+
+include config-lib.mk
+
+toinstall       =                 \
+        $D$(bindir)/slowtty       \
+        $D$(man1dir)/slowtty.1.gz
 
 clean:
 	$(RM) $(toclean)
 
-install: $(targets)
-	$(INSTALL) $(IFLAGS) $(DMOD) $(UMOD) -d $(bindir) $(man1dir)
-	$(INSTALL) $(IFLAGS) $(DMOD) $(XMOD) slowtty $(bindir)
-	$(INSTALL) $(IFLAGS) $(FMOD) slowtty.1 $(man1dir)
+install: $(toinstall)
+
+$D$(bindir)/slowtty: $(@:T) $(@:H)
+	$(INSTALL) $(IFLAGS) -m $(XMOD) slowtty $@
+
+$D$(man1dir)/slowtty.1.gz: $(@:T) $(@:H)
+	$(INSTALL) $(IFLAGS) -m $(FMOD) slowtty.1.gz $@
+
+$D$(bindir) $D$(man1dir):
+	$(INSTALL) $(IFLAGS) -m $(DMOD) -d $@
 
 deinstall:
-	$(RM) $(bindir)/slowtty
-	$(RM) $(man1dir)/slowtty.1
+	$(RM) $(toinstall)
 
 slowtty: $(slowtty_deps) $(slowtty_objs)
 	$(CC) $(CFLAGS) $(LDFLAGS) -o $@ $($@_objs) $($@_ldflags) $($@_libs)
@@ -62,4 +77,3 @@ slowtty: $(slowtty_deps) $(slowtty_objs)
 test_ring: $(slowtty_deps) $(test_ring_objs)
 	$(CC) $(CFLAGS) $(LDFLAGS) -o $@ $($@_objs) $($@_ldflags) $($@_libs)
 
-$(slowtty_objs): delay.h slowtty.h

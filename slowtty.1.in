@@ -1,18 +1,18 @@
-.Dd $Mdocdate$
-.Dt SLOWTTY 1
+.Dd @DOC_DATE@
+.Dt @PROGRAM_NAME_UC@ 1
 .OS
 .Sh NAME
-.Nm slowtty
+.Nm @PROGRAM_NAME@
 .Nd a program to simulate baudrates of old ttys over networked
 lines.
 .Sh SYNOPSIS
-.Nm slowtty
+.Nm
 .Op Fl dltw
 .Op Fl b Ar bufsize
-.Op Cm command Op Ar arguments Cm ...
+.Op Cm command Op Ar arguments
 .Sh DESCRIPTION
 The
-.Nm slowtty
+.Nm
 takes a pseudo-tty and simulates on it the behaviour of a slow
 tty line, by using the configured baudrate, and character frame
 length to calculate the character transmission time and adapt
@@ -22,7 +22,7 @@ serial line would do.
 While you are running the
 .Nm
 command, all the settings made with the
-.Cm stty(1)
+.Xr stty 1
 utility that result in changes in the baudrate or character size,
 parity or the like, will be taken into account by
 .Nm
@@ -33,7 +33,7 @@ If you don't add any
 to the parameter list, the
 .Nm
 utility just spawns a shell (as specified by the
-.Cm $SHELL
+.Ar $SHELL
 environment variable.)  The shell can be made a login shell
 with the option
 .Cm -l
@@ -55,7 +55,7 @@ program verbose, outputting log lines to stderr about what
 it is doing.
 It is useful for debugging purposes.
 .It Fl "l"
-prependeds a
+prepends a
 .Cm -
 to the program name argument in the command to execute.
 This, when used with a shell command, has the effect of making

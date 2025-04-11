@@ -2,8 +2,7 @@
  * to be able to follow output as if a slow terminal were
  * attached to the computer.
  * Author: Luis Colorado <luiscoloradourcola@gmail.com>
- * Copyright: (C) 2015-2020 LUIS COLORADO.  All rights reserved.
- * This is open source copyrighted software.
+ * Copyright: (C) 2015-2025 LUIS COLORADO.  All rights reserved.
  * License: BSD.
  */
 #ifndef _SLOWTTY_H
@@ -16,10 +15,6 @@
 #ifndef FALSE
 #define FALSE   (0)
 #define TRUE    (!FALSE)
-#endif
-
-#ifndef BUFFER_SIZE
-#define BUFFER_SIZE     (4096)
 #endif
 
 #ifndef TIC_DELAY  /* so we can change the value on the Makefile */
@@ -57,16 +52,6 @@
         }                                             \
     } while (0)
 
-#define FLAG_VERBOSE    (1 << 0)
-#define FLAG_DOWINCH    (1 << 1)
-#define FLAG_NOTCSET    (1 << 2)
-#define FLAG_LOGIN      (1 << 3)
-
-extern volatile int flags;
-extern size_t bufsz;
-extern int ptym, ptys;
-extern struct termios saved_tty;
-
 #define PIFLG_STOPPED   (1 << 0)
 
 struct pthread_info {
@@ -100,8 +85,17 @@ struct pthread_info {
     struct timespec tic;
 
     /* THE OTHER THREAD INFO (IN OPPOSITE DIRECTION) */
-    struct pthread_info *other; /* the info of the another thread */
+    struct pthread_info *other; /* the info of the other thread */
 
 }; /* struct pthread_info */
+
+extern struct termios saved_tty;
+
+extern struct winsize saved_window_size;
+
+void *pthread_body_writer(void *_pi),
+     *pthread_body_reader(void *_pi);
+
+extern int ptym, ptys;
 
 #endif /* _SLOWTTY_H */

@@ -3,3 +3,8 @@ slowtty
 make.err
 test_ring
 *.log
+.depend
+config.h
+config.h.in
+slowtty.1
+slowtty.1.gz

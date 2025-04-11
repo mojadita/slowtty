@@ -4,11 +4,10 @@
  * Author: Luis Colorado <luiscoloradourcola@gmail.com>
  * Date: jue jun 25 08:35:40 EEST 2015
  * Version: 0.10
- * Disclaimer: (C) 2015 Luis Colorado <luiscoloradourcola@gmail.com>
- *             all rights reserved.
- */
-
-/* We consider the time divided in tics of 0.04s (25 frames/sec)
+ * Disclaimer: (C) 2015-2025 Luis Colorado.  All rights reserved.
+ * License: BSD
+ *
+ * We consider the time divided in tics of 0.04s (25 frames/sec)
  * and, to be precise, we stick on 0.04s tic marks, so that value
  * is, indeed, fixed as a constant (not configurable).
  *
@@ -34,12 +33,14 @@
 #include <unistd.h>
 
 #include "gdc.h"
+#include "main.h"
 
 #ifndef NDEBUG
 #define NDEBUG 0
 #endif
 
 #include "slowtty.h"
+#include "main.h"
 #include "delay.h"
 
 /* Get the integer number of bits per second from the c_lflag field
@@ -67,7 +68,7 @@ static unsigned long getthebr(struct termios *t)
 
 unsigned long delay(struct pthread_info *pi)
 {
-    unsigned long res;
+    int res;
 
     /* the recalculation of delay times depends on the change of termios
      * parameters.  Only when a change in termios parameters is made we
