@@ -21,4 +21,7 @@ include ./config.mk
 
 config.h.in: ./config.h.in.sh ./config.mk
 	./config.h.in.sh < ./config.mk > $@
-toclean += config.h.in config.h
+toclean += config.h.in
+
+# config.h: config.h.in
+toclean += config.h

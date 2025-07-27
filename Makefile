@@ -50,8 +50,8 @@ all: $(targets)
 
 include config-lib.mk
 
-toinstall       =                 \
-        $D$(bindir)/slowtty       \
+toinstall       = \
+        $D$(bindir)/slowtty \
         $D$(man1dir)/slowtty.1.gz
 
 clean:
@@ -77,3 +77,12 @@ slowtty: $(slowtty_deps) $(slowtty_objs)
 test_ring: $(slowtty_deps) $(test_ring_objs)
 	$(CC) $(CFLAGS) $(LDFLAGS) -o $@ $($@_objs) $($@_ldflags) $($@_libs)
 
+# delay.c gdc.c main.c ring.c slowtty.c test_ring.c
+delay.o: delay.c gdc.h main.h slowtty.h ring.h \
+  delay.h
+gdc.o: gdc.c gdc.h
+main.o: main.c config.h slowtty.h ring.h main.h 
+ring.o: ring.c ring.h slowtty.h 
+slowtty.o: slowtty.c config.h main.h ring.h \
+  slowtty.h delay.h
+test_ring.o: test_ring.c ring.h 
