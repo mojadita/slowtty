@@ -1,4 +1,4 @@
-# config.mk -- configurable parameters for PACKAGE (see below)
+# config.mk -- configurable parameters for slowtty (see below)
 # Author: Luis Colorado <luis.colorado@spindrive.fi>
 # Date: Thu Dec 12 09:25:11 EET 2024
 # Copyright: (c) 2024 SpinDrive Oy, FI.  All rights reserved.
@@ -30,9 +30,8 @@ docdir                   ?= $(datarootdir)/doc/$(PACKAGE)
 vardir                   ?= $(exec_prefix)/var
 logdir                   ?= $(vardir)/log
 
-# define only one of these two
 UQ_HAS_PTY_H             ?=  $(HAS_PTY_H)
-UQ_PATH_MAX              ?=  1024
+UQ_PATH_MAX              ?=  PATH_MAX
 UQ_HAS_LIBUTIL_H         ?=  $(HAS_LIBUTIL_H)
 
 UQ_MAX_PTY_NAME          ?= 64

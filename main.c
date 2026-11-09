@@ -9,7 +9,9 @@
 #include <errno.h>
 #include <fcntl.h>
 #include <getopt.h>
+#include <limits.h>
 #include <pthread.h>
+#include <pwd.h>
 #include <signal.h>
 #include <stdio.h>
 #include <stdlib.h>
@@ -20,7 +22,6 @@
 #include <termios.h>
 #include <time.h>
 #include <unistd.h>
-#include <pwd.h>
 
 #include "config.h"
 #include "slowtty.h"
