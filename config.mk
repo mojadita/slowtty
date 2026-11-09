@@ -31,9 +31,9 @@ vardir                   ?= $(exec_prefix)/var
 logdir                   ?= $(vardir)/log
 
 # define only one of these two
-UQ_HAS_PTY_H             ?=  0
+UQ_HAS_PTY_H             ?=  $(HAS_PTY_H)
 UQ_PATH_MAX              ?=  1024
-UQ_HAS_LIBUTIL_H         ?=  1
+UQ_HAS_LIBUTIL_H         ?=  $(HAS_LIBUTIL_H)
 
 UQ_MAX_PTY_NAME          ?= 64
 UQ_MAXIMUM_BUFSIZ        ?= 64

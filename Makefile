@@ -6,10 +6,14 @@
 # License: BSD v2
 
 OS               != uname -o
-CFLAGS-FreeBSD   ?= -DHAS_LIBUTIL_H=1
-CFLAGS-GNU/Linux ?= -DHAS_PTY_H=1
 
-CFLAGS           += $(CFLAGS-$(OS))
+HAS_LIBUTIL_H-FreeBSD   ?= 1
+HAS_LIBUTIL_H-GNU/Linux ?= 0
+HAS_PTY_H-FreeBSD       ?= 0
+HAS_PTY_H-GNU/Linux     ?= 1
+
+HAS_LIBUTIL_H           ?= $(HAS_LIBUTIL_H-$(OS))
+HAS_PTY_H               ?= $(HAS_PTY_H-$(OS))
 
 INSTALL	         ?= install
 RM 		         ?= rm -f
