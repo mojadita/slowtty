@@ -11,6 +11,7 @@
 #define FLAG_LOGIN     (1 << 1)
 #define FLAG_NOTCSET   (1 << 2)
 #define FLAG_DOWINCH   (1 << 3)
+#define FLAG_DOWTMP    (1 << 4)
 
 extern volatile int flags;
 extern size_t bufsz;

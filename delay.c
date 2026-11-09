@@ -1,4 +1,4 @@
-/* delay.c -- routine to delay for amount 0.04s (25 updates/s.)and
+/* delay.c -- routine to delay for amount 0.04s (25 updates/s.) and
  * calculate the number of characters that can be output in that time,
  * based on the baudrate used in the tty device.
  * Author: Luis Colorado <luiscoloradourcola@gmail.com>
@@ -32,12 +32,10 @@
 #include <time.h>
 #include <unistd.h>
 
+#define ONE_BILLION  (1000000000U)
+
 #include "gdc.h"
 #include "main.h"
-
-#ifndef NDEBUG
-#define NDEBUG 0
-#endif
 
 #include "slowtty.h"
 #include "main.h"
@@ -71,34 +69,40 @@ unsigned long delay(struct pthread_info *pi)
     int res;
 
     /* the recalculation of delay times depends on the change of termios
-     * parameters.  Only when a change in termios parameters is made we
-     * calculate the new values for the number of characters to output
-     * and * the delay time.  We initialize it to all zeros, so in the
-     * first time we get an update. */
+     * parameters.
+     * Only when a change in termios parameters is made we calculate the
+     * new values for the number of characters to output and the delay
+     * time.  We initialize it to all zeros, so in the first time we get
+     * an update. */
     if ((res = tcgetattr(ptym, &saved_tty)) < 0) {
         ERR("%s: tcgetattr " ERRNO "\r\n", pi->name, EPMTS);
     }
 
-    speed_t new_baudrate = getthebr(&saved_tty);
-    tcflag_t  new_cflag = saved_tty.c_cflag;
+    speed_t   new_baudrate = getthebr(&saved_tty);
+    tcflag_t  new_cflag    = saved_tty.c_cflag;
 
-    if (   pi->svd_bauds != new_baudrate
-        || pi->svd_cflag != new_cflag) { /* changed parameters */
+    if (       pi->svd_bauds != new_baudrate
+            || pi->svd_cflag != new_cflag)
+    {
+        /* changed parameters */
+        int bits_per_char = -1;
 
-        int bits_per_char;
         switch (new_cflag & CSIZE) { /* character size */
         case CS8: bits_per_char = 10; break; /* START,8 DATA,STOP */
-        case CS7: bits_per_char = 9; break; /* START,7 DATA,STOP */
-        case CS6: bits_per_char = 8; break; /* START,6 DATA,STOP */
-        case CS5: bits_per_char = 7; break; /* START,5 DATA,STOP */
+        case CS7: bits_per_char =  9; break; /* START,7 DATA,STOP */
+        case CS6: bits_per_char =  8; break; /* START,6 DATA,STOP */
+        case CS5: bits_per_char =  7; break; /* START,5 DATA,STOP */
         } /* switch */
+
         if (saved_tty.c_cflag & PARENB) bits_per_char++; /* PARITY bit */
         if (saved_tty.c_cflag & CSTOPB) bits_per_char++; /* 2ND_STOP */
 
-        pi->num = new_baudrate;
-        pi->den = bits_per_char * TICS_PER_SEC;  /* ticks/sec. */
+        pi->num = new_baudrate;                  /* numerator */
+        pi->den = bits_per_char * TICS_PER_SEC;  /* denominator */
+
         long common_div = gdc(pi->num, pi->den);
         if (common_div > 1) {
+            /* reduce fraction */
             pi->num /= common_div;
             pi->den /= common_div;
         }
@@ -123,13 +127,17 @@ unsigned long delay(struct pthread_info *pi)
     /* add the tic delay */
     pi->tic.tv_nsec += TIC_DELAY;
     pi->tic.tv_nsec -= pi->tic.tv_nsec % TIC_DELAY;
-    if (pi->tic.tv_nsec >= 1000000000) { /* carry */
+    if (pi->tic.tv_nsec >= ONE_BILLION) { /* carry */
         pi->tic.tv_sec++;
-        pi->tic.tv_nsec -= 1000000000;
+        pi->tic.tv_nsec -= ONE_BILLION;
     }
-    res = clock_nanosleep(CLOCK_REALTIME, TIMER_ABSTIME, &pi->tic, NULL);
+    /* stop until the next time to actuate. */
+    res = clock_nanosleep(
+            CLOCK_REALTIME, TIMER_ABSTIME,
+            &pi->tic, NULL);
     if (res < 0) {
-        ERR("%s: clock_gettime" ERRNO "\r\n", pi->name, EPMTS);
+        ERR("%s: clock_gettime" ERRNO "\r\n",
+            pi->name, EPMTS);
     }
 
     return pi->ctw;

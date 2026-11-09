@@ -49,10 +49,10 @@
 #define   UQ_MAX_PTY_NAME (64)
 #endif /* UQ_MAX_PTY_NAME    }} */
 
-#ifndef   UQ_DEFAULT_BUFSIZ /* {{ */
-#warning  UQ_DEFAULT_BUFSIZ should be defined in config.mk
-#define   UQ_DEFAULT_BUFSIZ (256)
-#endif /* UQ_DEFAULT_BUFSIZ    }} */
+#ifndef   UQ_MAXIMUM_BUFSIZ /* {{ */
+#warning  UQ_MAXIMUM_BUFSIZ should be defined in config.mk
+#define   UQ_MAXIMUM_BUFSIZ (256)
+#endif /* UQ_MAXIMUM_BUFSIZ    }} */
 
 #ifndef   UQ_DEFAULT_FLAGS /* {{ */
 #warning  UQ_DEFAULT_FLAGS should be defined in config.mk
@@ -115,7 +115,7 @@ pass_winsz(int sig)
             "but deactivated from config\r\n");
         return;
     }
-    struct winsize ws;
+    struct winsize old, ws;
     int res = ioctl(0, TIOCGWINSZ, &ws);
     if (res < 0) {
         WARN("cannot get the new window "
@@ -139,9 +139,7 @@ pass_winsz(int sig)
 } /* pass_winsz */
 
 int
-main(
-        int argc,
-        char **argv)
+main(int argc, char **argv)
 {
     int    opt,
            res;
@@ -149,19 +147,20 @@ main(
     char   pty_name[UQ_MAX_PTY_NAME];
     size_t bufsz;
 
-    while ((opt = getopt(argc, argv, "dltws:")) != EOF) {
+    while ((opt = getopt(argc, argv, "dls:tuw")) != EOF) {
         switch (opt) {
         case 'd': flags ^=  FLAG_VERBOSE; break;
         case 'l': flags ^=  FLAG_LOGIN;   break;
         case 't': flags ^=  FLAG_NOTCSET; break;
         case 'w': flags ^=  FLAG_DOWINCH; break;
+        case 'u': flags ^=  FLAG_DOWTMP;  break;
         case 's': bufsz  =  atoi(optarg);
-            if (bufsz <= 0 || bufsz >= UQ_DEFAULT_BUFSIZ) {
+            if (bufsz <= 0 || bufsz >= UQ_MAXIMUM_BUFSIZ) {
                 WARN("buffer size set to default(%d) due to "
                     "invalid value (%s) passed\n",
-                    UQ_DEFAULT_BUFSIZ,
+                    UQ_MAXIMUM_BUFSIZ,
                     optarg);
-                bufsz = UQ_DEFAULT_BUFSIZ;
+                bufsz = UQ_MAXIMUM_BUFSIZ;
             } break;
         } /* switch */
     } /* while */
@@ -190,7 +189,8 @@ main(
     fflush(NULL);
 
     child_pid = forkpty(&ptym,
-            pty_name, &saved_tty, &saved_window_size);
+            pty_name, &saved_tty,
+            &saved_window_size);
     if (child_pid < 0) {
         ERR("forkpty" ERRNO "\n", EPMTS);
         /* NOTREACHED */
@@ -243,8 +243,7 @@ main(
         struct sigaction sa;
         struct termios stty_raw = saved_tty;
 
-        LOG("forkpty: child_pid == %d, ptym=%d, "
-                "pty_name=[%s]\n",
+        LOG("forkpty: child_pid == %d, ptym=%d, pty_name=[%s]\n",
                 child_pid, ptym, pty_name);
 
         /* from this point on, we have to use \r in addition

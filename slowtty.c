@@ -1,11 +1,11 @@
-/* slowtty.c -- program to slow down the input/output of characters to
- * be able to follow output as if a slow terminal were attached to
- * the computer.
+/* slowtty.c -- program to slow down the input/output of characters
+ *              to be able to follow output as if a slow terminal
+ *              were attached to the computer.
  *
- * Author: Luis Colorado <luiscoloradourcola@gmail.com>
  * Date: Wed Aug  3 08:12:26 EEST 2016
+ * Author: Luis Colorado <luiscoloradourcola@gmail.com>
  * Copyright: (C) 2015 LUIS COLORADO.
- * License: BSD
+ * License: BSD v2
  *
  * The software is distributed 'AS IS' which means that the author
  * doesn't accept any liabilities or responsibilities derived of the
@@ -76,7 +76,8 @@ pass_data(
     for (;;) {
 
         /* window is the number of characters we can write
-         * in this loop pass. */
+         * in this loop pass. This is based on the delay between
+         * this call to delay() and the previous one. */
         int window = delay(pi); /* do the delay. */
 
         LOG("%s: window = %d\r\n", pi->name, window);
@@ -145,6 +146,10 @@ pass_data(
         }
 
         /* check if we have to start/stop the channel */
+        /* LCU: Mon Nov  9 07:18:06 EET 2026
+         * This part must be changed, so we don't use XON/XOFF
+         * protocol.  Let's use the TIOCSTOP/TIOCSTART to do the
+         * control flow */
         if (pi->flags & PIFLG_STOPPED && pi->b.rb_size < window) {
 
             /* THIS WRITE WILL GO INTERSPERSED BETWEEN THE CALLS
@@ -181,7 +186,7 @@ pthread_body_writer(
     struct pthread_info *pi = _pi;
 
     LOG("%s: id=%p, from_fd=%d, to_fd=%d, name=%s\r\n",
-            pi->name, pi->id, pi->from_fd, pi->to_fd, pi->name);
+        pi->name, pi->id, pi->from_fd, pi->to_fd, pi->name);
     pass_data(pi);
     return pi;
 } /* pthread_body_writer */

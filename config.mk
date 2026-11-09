@@ -36,7 +36,7 @@ UQ_PATH_MAX              ?=  1024
 UQ_HAS_LIBUTIL_H         ?=  1
 
 UQ_MAX_PTY_NAME          ?= 64
-UQ_DEFAULT_BUFSIZ        ?= 64
+UQ_MAXIMUM_BUFSIZ        ?= 64
 UQ_DEFAULT_FLAGS         ?= (FLAG_DOWINCH)
 
 UQ_USE_COLORS            ?=  1

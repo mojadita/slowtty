@@ -10,6 +10,9 @@
 
 #include <termios.h>
 
+struct pthread_info;
+
+#include "flow.h"
 #include "ring.h"
 
 #ifndef FALSE
@@ -70,6 +73,9 @@ struct pthread_info {
     char           *name;
     struct ring_buffer
                     b;          /* ring buffer */
+
+	/* FLOW CONTROL */
+	flow_control_t  *flow_control;
 
     /* CHANNEL SAVED CONFIG */
     speed_t         svd_bauds;  /* saved baudrate */

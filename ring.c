@@ -28,7 +28,7 @@ rb_io(
                              * to update it) */
         ssize_t    (*io_op)(/* function to call to do actual io */
                 int          fd,    /* file descriptor */
-                const struct iovec
+        const struct iovec
                             *iov,   /* struct iovec array */
                 int          niov), /* number of array elements. */
         char        *fname) /* function name to call (for error

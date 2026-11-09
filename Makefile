@@ -1,8 +1,9 @@
 # slowtty -- program to simulate the baudrate speed of a serial line on
-# a local tty (or network based).
+#            a local tty (or network based).
 # Author: Luis Colorado <luiscoloradourcola@gmail.com>
-# Copyright: (C) 2015-2025 LUIS COLORADO.  All rights reserved.
 # Date: Tue Aug  2 16:00:52 EEST 2016
+# Copyright: (C) 2015-2026 LUIS COLORADO.  All rights reserved.
+# License: BSD v2
 
 # Uncomment the following line to compile this program on BSD
 # systems, or systems that have the forkpty() function prototype
@@ -42,7 +43,7 @@ toclean	       += $(targets)
 test_ring_objs  = test_ring.o ring.o
 toclean        += $(test_ring_objs)
 
-slowtty_objs    = slowtty.o delay.o ring.o gdc.o main.o
+slowtty_objs    = slowtty.o delay.o ring.o gdc.o main.o flow.o
 slowtty_libs    = -lutil -lpthread
 toclean        += $(slowtty_objs)
 
