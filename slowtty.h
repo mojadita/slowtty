@@ -74,8 +74,8 @@ struct pthread_info {
     struct ring_buffer
                     b;          /* ring buffer */
 
-	/* FLOW CONTROL */
-	flow_control_t  *flow_control;
+    /* FLOW CONTROL */
+    flow_control_t  *flow_control;
 
     /* CHANNEL SAVED CONFIG */
     speed_t         svd_bauds;  /* saved baudrate */

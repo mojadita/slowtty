@@ -1,9 +1,8 @@
 /* slowtty.c -- program to slow down the input/output of characters
  *              to be able to follow output as if a slow terminal
  *              were attached to the computer.
- *
- * Date: Wed Aug  3 08:12:26 EEST 2016
  * Author: Luis Colorado <luiscoloradourcola@gmail.com>
+ * Date: Wed Aug  3 08:12:26 EEST 2016
  * Copyright: (C) 2015 LUIS COLORADO.
  * License: BSD v2
  *
@@ -137,7 +136,7 @@ pass_data(
         if (to_write > 0) {
             ssize_t res = rb_write(&pi->b, pi->to_fd, to_write);
             if (res < 0) {
-                ERR("%s: write" ERRNO "\n", pi->name, EPMTS);
+                WARN("%s: write" ERRNO "\n", pi->name, EPMTS);
                 break;
             }
             LOG("%s: rb_write(&pi->b, pi->to_fd=%d, "
@@ -145,36 +144,9 @@ pass_data(
                 pi->name, pi->to_fd, to_write, res);
         }
 
-        /* check if we have to start/stop the channel */
-        /* LCU: Mon Nov  9 07:18:06 EET 2026
-         * This part must be changed, so we don't use XON/XOFF
-         * protocol.  Let's use the TIOCSTOP/TIOCSTART to do the
-         * control flow */
-        if (pi->flags & PIFLG_STOPPED && pi->b.rb_size < window) {
+        /* do the flow control */
+        pi->flow_control(pi);
 
-            /* THIS WRITE WILL GO INTERSPERSED BETWEEN THE CALLS
-             * OF THE OTHER THREAD, AS THE INODE IS LOCKED BY THE
-             * SYSTEM, NO TWO THREADS CAN EXECUTE IN PARALLEL TWO
-             * WRITES TO THE SAME FILE AT THE SAME TIME.   THE
-             * WRITE BELOW HAS EXACTLY THE SAME ISSUE*/
-            write(pi->other->to_fd, "\021", 1); /* XON, ASCII DC1 */
-
-            LOG("%s: automatic XON on pi->b.rb_size=%zu"
-                " < window=%d\n",
-                pi->name, pi->b.rb_size, window);
-            pi->flags &= ~PIFLG_STOPPED;
-
-        } else if (!(pi->flags & PIFLG_STOPPED)
-                && pi->b.rb_size >= 2 * window)
-        {
-            /* SEE COMMENT ON WRITE ABOVE */
-            write(pi->other->to_fd, "\023", 1); /* XOFF, ASCII DC3 */
-
-            LOG("%s: automatic XOFF on pi->b.rb_size=%zu "
-                ">= 2 * window=%d\n",
-                pi->name, pi->b.rb_size, window);
-            pi->flags |= PIFLG_STOPPED;
-        }
     } /* for */
     LOG("%s: END\n", pi->name);
 } /* pass_data */

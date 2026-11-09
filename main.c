@@ -77,14 +77,16 @@ init_pthread_info(
         struct pthread_info    *other,
         int                     from_fd,
         int                     to_fd,
-        char                   *name)
+        char                   *name,
+        flow_control_t         *flow_func)
 {
-    pi->from_fd     = from_fd;
-    pi->to_fd       = to_fd;
-    pi->name        = name;
-    pi->other       = other;
-    pi->flags       = 0;
-    pi->do_finish   = 0;
+    pi->from_fd      = from_fd;
+    pi->to_fd        = to_fd;
+    pi->name         = name;
+    pi->other        = other;
+    pi->flags        = 0;
+    pi->do_finish    = 0;
+    pi->flow_control = flow_func;
     rb_init(&pi->b);
 
     return pi;
@@ -171,7 +173,7 @@ main(int argc, char **argv)
     /* we obtain the tty settings from stdin . */
     LOG("tcgetattr(0, &saved_tty);\n");
     if ( tcgetattr(0, &saved_tty) < 0) {
-        ERR("tcgetattr" ERRNO "\n", EPMTS);
+        WARN("tcgetattr" ERRNO "\n", EPMTS);
     }
 
     /* get the window size */
@@ -263,7 +265,7 @@ main(int argc, char **argv)
         atexit(atexit_handler);
         res = tcsetattr(0, TCSADRAIN, &stty_raw);
         if (res < 0) {
-            ERR("tcsetattr(0, &stty_raw)"
+            WARN("tcsetattr(0, &stty_raw)"
                 ERRNO "\n", EPMTS);
         } /* if */
 
@@ -313,7 +315,8 @@ main(int argc, char **argv)
                     &p_in,
                     &p_out,
                     0, ptym,
-                    "READER"));
+                    "READER",
+                    upstream_flow_control));
         if (res < 0) {
             ERR("pthread_create" ERRNO "\r\n", EPMTS);
         }
@@ -336,7 +339,8 @@ main(int argc, char **argv)
                     &p_out,
                     &p_in,
                     ptym, 1,
-                    "WRITER"));
+                    "WRITER",
+                    downstream_flow_control));
         if (res < 0) {
             ERR("pthread_create" ERRNO "\r\n", EPMTS);
         }
