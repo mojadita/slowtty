@@ -5,37 +5,27 @@
 # Copyright: (C) 2015-2026 LUIS COLORADO.  All rights reserved.
 # License: BSD v2
 
-# Uncomment the following line to compile this program on BSD
-# systems, or systems that have the forkpty() function prototype
-# defined there.  For example, this is required in FreeBSD to 
-# eliminate a compiler warning.
-#
-# CFLAGS += -DHAS_LIBUTIL_H=1
+OS               != uname -o
+CFLAGS-FreeBSD   ?= -DHAS_LIBUTIL_H=1
+CFLAGS-GNU/Linux ?= -DHAS_PTY_H=1
 
-# Uncomment the following line to compile this program on Linux
-# systems, or systems that have the forkpty() function prototype
-# defined in pty.h.  For example, this is required in Linux to
-# eliminate a compiler warning.
-#
-# CFLAGS += -DHAS_PTY_H=1
+CFLAGS           += $(CFLAGS-$(OS))
 
-OS             != uname -o
+INSTALL	         ?= install
+RM 		         ?= rm -f
 
-INSTALL	       ?= install
-RM 		       ?= rm -f
+CFLAGS	         += -pthread
+DMOD	         ?= -m 0755
+XMOD	         ?= -m 0755
+FMOD	         ?= -m 0644
 
-CFLAGS	       += -pthread
-DMOD	       ?= 0755
-XMOD	       ?= 0755
-FMOD	       ?= 0644
+OWN-FreeBSD      ?= root
+GRP-FreeBSD      ?= wheel
 
-OWN-FreeBSD    ?= root
-GRP-FreeBSD    ?= wheel
+OWN-GNU/Linux    ?= -o bin
+GRP-GNU/Linux    ?= -g bin
 
-OWN-GNU/Linux  ?= bin
-GRP-GNU/Linux  ?= bin
-
-IFLAGS         ?= -o $(OWN-$(OS)) -g $(GRP-$(OS))
+IFLAGS         ?= $(OWN-$(OS)) $(GRP-$(OS))
 
 targets         = slowtty test_ring slowtty.1.gz
 toclean	       += $(targets)
@@ -61,29 +51,30 @@ clean:
 install: $(toinstall)
 
 $D$(bindir)/slowtty: $(@:T) $(@:H)
-	$(INSTALL) $(IFLAGS) -m $(XMOD) slowtty $@
+	$(INSTALL) $(IFLAGS) $(XMOD) slowtty $@
 
 $D$(man1dir)/slowtty.1.gz: $(@:T) $(@:H)
-	$(INSTALL) $(IFLAGS) -m $(FMOD) slowtty.1.gz $@
+	$(INSTALL) $(IFLAGS) $(FMOD) slowtty.1.gz $@
 
 $D$(bindir) $D$(man1dir):
-	$(INSTALL) $(IFLAGS) -m $(DMOD) -d $@
+	$(INSTALL) $(IFLAGS) $(DMOD) -d $@
 
-deinstall:
+deinstall uninstall:
 	$(RM) $(toinstall)
 
 slowtty: $(slowtty_deps) $(slowtty_objs)
-	$(CC) $(CFLAGS) $(LDFLAGS) -o $@ $($@_objs) $($@_ldflags) $($@_libs)
+	$(CC) $(CFLAGS) $(LDFLAGS) -o $@ $($@_ldflags) \
+			$($@_objs) $($@_libs)
 
-test_ring: $(slowtty_deps) $(test_ring_objs)
-	$(CC) $(CFLAGS) $(LDFLAGS) -o $@ $($@_objs) $($@_ldflags) $($@_libs)
+test_ring: $(test_ring_deps) $(test_ring_objs)
+	$(CC) $(CFLAGS) $(LDFLAGS) -o $@ $($@_ldflags) \
+			$($@_objs) $($@_libs)
 
-# delay.c gdc.c main.c ring.c slowtty.c test_ring.c
-delay.o: delay.c gdc.h main.h slowtty.h ring.h \
-  delay.h
+# delay.c flow.c gdc.c main.c ring.c slowtty.c test_ring.c
+delay.o: delay.c gdc.h main.h slowtty.h flow.h ring.h delay.h
+flow.o: flow.c slowtty.h flow.h ring.h
 gdc.o: gdc.c gdc.h
-main.o: main.c config.h slowtty.h ring.h main.h 
-ring.o: ring.c ring.h slowtty.h 
-slowtty.o: slowtty.c config.h main.h ring.h \
-  slowtty.h delay.h
-test_ring.o: test_ring.c ring.h 
+main.o: main.c config.h slowtty.h flow.h ring.h main.h
+ring.o: ring.c ring.h slowtty.h flow.h
+slowtty.o: slowtty.c config.h main.h ring.h slowtty.h flow.h delay.h
+test_ring.o: test_ring.c ring.h
