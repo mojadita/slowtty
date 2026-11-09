@@ -19,8 +19,8 @@ DMOD	         ?= -m 0755
 XMOD	         ?= -m 0755
 FMOD	         ?= -m 0644
 
-OWN-FreeBSD      ?= root
-GRP-FreeBSD      ?= wheel
+OWN-FreeBSD      ?= -o root
+GRP-FreeBSD      ?= -g wheel
 
 OWN-GNU/Linux    ?= -o bin
 GRP-GNU/Linux    ?= -g bin
