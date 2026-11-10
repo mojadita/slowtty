@@ -14,16 +14,10 @@ specific flags.
 
 To compile on _FreeBSD_, just issue the command
 
-    make CFLAGS=-DHAS_LIBUTIL_H=1 install
+    make 
+    sudo make install
 
-in the source code directory.  The program will be installed by
-default in `${HOME}/bin`.  If you want to install it in the
-`/usr/local` hierarchy (or elsewhere), just uncomment in the
-`Makefile` the `UMOD=...` line and then, issue the command:
-
-    make prefix="/usr/local" CFLAGS=-DHAS_LIBUTIL_H=1 install
-
-and you'll have it installed properly.
+in the source code directory.
 
 ---
 
